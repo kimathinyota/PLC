@@ -10,133 +10,186 @@ import Tokens
     int             { TokenInt _ $$ } 
     var             { TokenVar _ $$ } 
     eq              { TokenEq _ } 
-    '+'             { TokenPlus _ } 
+    '+'             { TokenPlus _ }
+    concat          { TokenConcat _}
+    elemAt          { TokenElemAt _}
     '-'             { TokenMinus _ } 
     '*'             { TokenMultiply _ } 
     '^'             { TokenExp  _  }
     '/'             { TokenDiv _ } 
-	if              { TokenIf}
-	then            {TokenThen}
-	else            {TokenElse}
-	out             {TokenOut}
-	processStream   {TokenProcessStream}
-	head            {TokenHead}
-	tail            {TokenTail}
-	length          {TokenLength}
-	string          {TokenString _ $$}
-	lbracket        {TokenLBracket _}
-	rbracket        {TokenRBracket _}
-	lparen          {TokenLParen _}
-	rparen          {TokenRParen _}
-	lbrace          {TokenLBrace _}
-	rbrace          {TokenRBrace _}
-	boolean         {TokenBool _ $$}
-	colon           {TokenColon _}
-	neg             {TokenNeg _}
-	and             {TokenAnd _}
-	or              {TokenOr _}
-	lt              {TokenLess _}
-	gt              {TokenGreater _}
-	semi            {TokenSemi _}
-	comma           {TokenComma _}
+	  if              { TokenIf}
+	  then            {TokenThen}
+	  else            {TokenElse}
+	  out             {TokenOut}
+    to              {TokenTo}
+	  processStream   {TokenProcessStream}
+	  head            {TokenHead}
+    rowList         {TokenRow}
+    seqList         {TokenSequence}
+    streams         {TokenStreams}
+	  tail            {TokenTail}
+	  length          {TokenLength}
+	  string          {TokenString _ $$}
+	  lbracket        {TokenLBracket _}
+	  rbracket        {TokenRBracket _}
+	  lparen          {TokenLParen _}
+	  rparen          {TokenRParen _}
+	  lbrace          {TokenLBrace _}
+	  rbrace          {TokenRBrace _}
+	  boolean         {TokenBool _ $$}
+	  colon           {TokenColon _}
+	  neg             {TokenNeg _}
+    noteq           {TokenNotEq _}
+    eqeq            {TokenEqEq _}
+	  and             {TokenAnd _}
+	  or              {TokenOr _}
+	  lt              {TokenLess _}
+	  gt              {TokenGreater _}
+    lteq            {TokenLessEqual _}
+    gteq            {TokenGreaterEqual _}
+	  semi            {TokenSemi _}
+	  comma           {TokenComma _}
+
+
+
+%left or
+%left and
+%nonassoc lt gt lteq gteq eq eqeq noteq
+%right concat
+%left '+' '-'
+%left '*' '/'
+%right '^'
+%left neg
+%left elemAt
 
 %%
-program : stmt_list {Program $1}
+
+program : stmt_list {Prog $1}
 
 
 func_Def : var lparen param_list rparen eq expr {Def $1 $3 $6 }
-func_Def_List : func_Def { $1 }
-              | func_Def comma func_Def_List {DefElem $1 $3 }
 
-stmt_list : stmt {$1}
+
+func_Def_List : list_func_def {FuncDefList $1}
+
+
+list_func_def : func_Def { [$1] }
+              | func_Def comma list_func_def { $1 : $3 }
+              | {--Empty--} {[]}
+
+stmt_list : stmt { $1 }
           | stmt_list semi stmt{Line $1 $3}
+          | conditional_stmt {$1}
 		  
 stmt : out_stmt {$1}
-     | conditional_stmt {$1}
      | process_stream_stmt {$1}
 
-out_stmt : out lparen expr rparen {$3}
+out_stmt : out lparen expr rparen {Out $3}
 
-process_stream_stmt : pr
+output : expr {NoSE $1}
+       | stmt {SE $1}
 
+iteratorFromTo : math_options comma math_options comma math_options {Iterator $1 $3 $5} 
 
+process_stream_stmt : processStream lparen output comma output comma iteratorFromTo rparen {ProcessStream $3 $5 $7}
 	 
-conditional_stmt : if lparen bool_expr rparen then lparen stmt_list rparen else lparen stmt_list rparen {ProcCond $3 $7 $11 }
+conditional_stmt : if lparen bool_options rparen then lparen stmt rparen else lparen stmt rparen {ProcCond $3 $7 $11 }
 	 
 func_stmt : var lparen param_list rparen {Call $1 $3}
 
-param_list : expr {$1}
-           | expr comma param_list {Param $1 $3}
+param_list : expr comma param_list { $1 : $3 }
+           | expr { [$1] }
+           --| {--Empty--} {[]}
 
-expr : math_expr {MathExpr $1}
-     | bool_expr {BoolExpr $1}
-	 | conditional_expr {$1}
-	 | list_expr {$1}
-     | list_func_expr {ListFunc $1}
+expr : bool_expr {BoolExpr $1}
+	   | conditional_expr {$1}
+	   | list_expr {$1}
+     | list_func_expr {$1}
+     | math_expr {MathExpr $1}
 
-list_func_expr : head list_expr {Head (List_expr $1)}
-               | elemAt list_expr math_expr {ElemAt (List_expr $1) (Math_expr $1)}
-	 
-bool_expr : boolean {Bool boolean}
-          | math_expr math_bool_op math_expr {MathToBool $1 $2 $3}
-		  | bool_expr bin_bool_op bool_expr {BoolToBool (BoolExpr $1) (Bin_bool_op $2) (BoolExpr $3)}
-		  | neg bool_expr {Neg $2}
-		  | lparen bool_expr rparen {$2}
+list_func_expr : head lparen list_expr rparen {Head $3}
+               | list_expr elemAt math_expr {ElemAt $1 $3}
 
-math_bool_op : eq eq {Equalto}
-             | gt eq {Gteq}
-			 | lt eq {Lteq}
-			 | lt {Less}
-			 | gt {Greater}
-			 | neg eq {Noteq}
-			
-bin_bool_op : or {Or}
-            | and {And}
+math_options : math_expr {MathExpr $1}
+             | func_stmt {MathFunc $1}
+             | var {MathVar $1}
 
-conditional_expr : if lparen bool_expr rparen then lparen expr rparen else lparen expr rparen {Cond_expr (BoolExpr $3) (Expr $7) (Expr $11)}
+list_options : list_expr {ListExpr $1}
+             | func_stmt {ListFunc $1}
+             | var {ListVar $1}
 
-math_expr : int {Int $1}
-          | math_expr '+' math_expr {Plus $1 $3}
-          | math_expr '-' math_expr {Minus $1 $3}
-		  | math_expr '*' math_expr {Multiply $1 $3}
-		  | math_expr '/' math_expr {Divide $1 $3}
-		  | math_expr '^' math_expr {Power $1 $3}
-		  | lparen math_expr rparen {$2}
+bool_options : bool_expr {BoolExpr $1}
+             | func_stmt {BoolFunc $1}
+             | var {BoolVar $1} 
 
-list_expr : lbracket list rbracket {$2}
-          | tail list_expr {Tail $2}
+bool_expr : boolean { stringToBool (boolean) }
+          | math_options eqeq math_options {$1 Equalto $3}
+          | math_options gteq math_options {$1 GreaterEqual $3}
+          | math_options lt math_options {$1 Less $3}
+          | math_options gt math_options {$1 Greater $3}
+          | math_options noteq math_options {$1 NotEqual $3}
+          | math_options lteq math_options {$1 LessEqual $3} 
+		      | bool_options or bool_options {$1 Or $3}
+          | bool_options and bool_options {$1 And $3}
+		      | neg bool_options {Neg $2}
+		      | lparen bool_expr rparen {$2}
+
+
+
+conditional_expr : if lparen bool_options rparen then lparen expr rparen else lparen expr rparen {Cond_expr $3 $7 $11}
+
+
+math_expr : int {$1}
+          | math_options '+' math_options {$1 Plus $3}
+          | math_options '-' math_options {$1 Minus $3}
+          | math_options '*' math_options {$1 Multiply $3}
+          | math_options '/' math_options {$1 Divide $3}
+          | math_options '^' math_options {$1 Power $3}
+          | length lparen list_options rparen {Length $3}
+		      | lparen math_expr rparen {$2}
+          
+
+list_expr : lbracket list rbracket {List $2}
+          | tail lparen list_options rparen {Tail $3}
+		      | list_options concat list_options {Concat $1 $3}
+          | rowList lparen math_options rparen {Row $3}
+          | seqList lparen math_options rparen {Sequence $3}
+          | streams {Streams}
           | lparen list_expr rparen {$2}
-		  | list_expr '+' '+' list_expr {Concat (List_expr $1) (List_expr $4)}
 
 
-		  
-list : bool_list {$1}
-     | math_list {$1}
+list : expr comma list {$1 : $3 }
+     | expr { [$1] }
+     --| {--Empty--} {[]}
 
-bool_list : bool_expr {$1}
-          | bool_expr comma bool_list {BoolElem $1 $3}
-		  
-math_list : math_expr {$1}
-          | math_expr comma math_list {MathElem $1 $3}
-		  
 
 {
+
+stringToBool :: String -> Bool
+stringToBool "True" = True
+stringToBool "False" = False
+
+
 parseError :: [Token] -> a
 parseError [] = error "Unknown Parse Error" 
 parseError (t:ts) = error ("Parse error at line:column " ++ (tokenPosn t))
 
-data Program = Stmt_List deriving (Eq,Show)
+data Program = Prog Stmt_List deriving (Eq,Show)
 
-
-
-data Stmt_List = Stmt | Line Stmt Stmt_List deriving (Eq,Show)
+data Stmt_List = Statements [Stmt] deriving (Eq,Show)
 
 data Stmt = Process_Stream_Func
           | Out_Func
           | Cond_stmt
           deriving (Eq,Show)
 
-data Process_Stream_Func = ProcessStream Expr Expr Expr
+--Iterator: (<start>, <end>, <incr value>)
+data IteratorFromTo = Iterator Math_options Math_options Math_options deriving (Eq,Show)
+
+data Output = NoSE Expr | SE Stmt deriving (Eq,Show)
+
+--Process Stream: processStream(<accumalator initial>,<output functions>, <accumalator functions>, IteratorFromTo)
+data Process_Stream_Func = ProcessStream Expr Output Output IteratorFromTo
                          deriving (Eq,Show)
 
 data Out_Func = Out Expr
@@ -145,74 +198,71 @@ data Out_Func = Out Expr
 data Func_Def = Def String Param_list Expr
               deriving (Eq,Show)
 
-data FuncDef_List = Func_Def | DefElem Func_Def FucDef_List
+data FuncDef_List = FuncDefList [Func_Def]
                  deriving (Eq,Show)
 
 data Func_stmt = Call String Param_list deriving (Eq,Show)
 
-data Cond_stmt = ProcCond Bool_expr Stmt_List Stmt_List deriving (Eq,Show)
+data Cond_stmt = ProcCond Bool_expr Stmt Stmt deriving (Eq,Show)
 
-data Param_list = Func_stmt | Param Expr Param_list deriving (Eq,Show)
+data Param_list = ParamList [Expr] deriving (Eq,Show)
 
-data Expr = Cond_stmt 
-          | Func_stmt 
-          | MathExpr Math_expr 
-          | BoolExpr Bool_expr 
+data Expr = Func_stmt 
+          | Math_expr 
+          | Bool_expr 
           | Cond_expr
           | List_expr 
-          | Head List_expr
-          | ElemAt List_expr Math_expr
+          | List_Func
           deriving (Eq,Show)
 
-data Bool_expr = BoolVar String 
-               | Bool 
-               | Math_to_bool 
-               | Bool_to_bool 
-               | Neg Bool 
+
+data List_Func = Head List_options
+               | ElemAt List_options Math_options
                deriving (Eq,Show)
 
-data Math_expr = MathVar String 
-               | Int 
-               | Plus Math_expr Math_expr 
-               | Minus Math_expr Math_expr  
-               | Multiply Math_expr Math_expr  
-               | Divide Math_expr Math_expr  
-               | Power Math_expr Math_expr 
-               | Length List_expr  
+data Bool_expr = Bool
+               | MathOptMath_options Math_to_bool Math_options 
+               | Bool_options Bool_to_bool Bool_options
+               | Neg Bool_options 
                deriving (Eq,Show)
+
+data Math_to_bool = Equal 
+                  | GreaterEqual
+                  | LessEqual
+                  | Less
+                  | Greater
+                  | NotEqual
+                  deriving (Eq,Show)
+
+data Bool_to_bool = Or
+                  | And 
+                  deriving (Eq,Show)
+
+data Math_expr = Int 
+               | Math_options Math_op Math_options 
+               | Length List_options
+               | EOF
+               | EOL
+               deriving (Eq,Show)
+
+
+data Math_op = Plus | Minus | Multiply | Divide | Power deriving (Eq,Show)
+
+data Math_options = MathExpr Math_expr | MathFunc Func_stmt | MathVar String deriving (Eq,Show)
+
+data List_options = ListExpr List_expr | ListFunc Func_stmt | ListVar String deriving (Eq,Show)
+
+data Bool_options = BoolExpr Bool_expr | BoolFunc Func_stmt | BoolVar String deriving (Eq,Show)
 
 data Cond_expr = CondExpr Bool_expr Expr Expr 
                deriving (Eq,Show)
 
-data List_expr = ListVar String 
-               | Bool_list 
-               | Math_list
-               | Concat List_expr List_expr 
+data List_expr = List [Expr]
+               | Concat List_options List_options
+               | Tail List_options
+               | Row Math_options
+               | Sequence Math_options
+               | Streams   
                deriving (Eq,Show)
 
-data Bool_list = ListBool String 
-               | Bool_expr 
-               | BoolList Bool_expr Bool_list 
-               | Bool_list
-               deriving (Eq,Show)
-
-
-data Math_list = Math_expr 
-               | MathList Math_expr Math_list
-               | Math_list
-               deriving (Eq,Show)
-
-
-data Math_to_bool = Equal Math_expr Math_expr 
-                  | GreaterEqual Math_expr Math_expr
-                  | LessEqual Math_expr Math_expr
-                  | Less Math_expr Math_expr
-                  | Greater Math_expr Math_expr
-                  | NotEqual Math_expr Math_expr 
-                  deriving (Eq,Show)
-
-data Bool_to_bool = Or Bool_expr Bool_expr 
-                  | And Bool_expr Bool_expr 
-                  deriving (Eq,Show)
-
-
+}
