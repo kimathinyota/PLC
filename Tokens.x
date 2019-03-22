@@ -6,8 +6,8 @@ module Tokens where
 $digit = 0-9  
 $alpha = [a-zA-Z]  
 tokens :-
-$white+       ; 
-  "--".*        ;
+$white+                    ; 
+  "--".*                   ;
   if                       { \p s -> TokenIf p}
   then                     { \p s -> TokenThen p}
   else                     { \p s -> TokenElse p}
@@ -20,9 +20,9 @@ $white+       ;
   \".*\"                   { \p s -> TokenString p (read s)}
   $digit+                  { \p s -> TokenInt p (read s) } 
   $alpha+                  { \p s -> TokenVar p s}
-  R                        { \p s -> TokenRow p s}
-  S                        { \p s -> TokenSequence p s}
-  streams                  { \p s -> TokenStreams p s}
+  R                        { \p s -> TokenRow p}
+  S                        { \p s -> TokenSequence p}
+  streams                  { \p s -> TokenStreams p}
   \[                       { \p s -> TokenLBracket p}
   \[                       { \p s -> TokenRBracket p}
   \=                       { \p s -> TokenEq p}
