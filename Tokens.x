@@ -8,11 +8,18 @@ $alpha = [a-zA-Z]
 tokens :-
 $white+                    ; 
   "--".*                   ;
+  \\n                      ;
   if                       { \p s -> TokenIf p}
   then                     { \p s -> TokenThen p}
   else                     { \p s -> TokenElse p}
   out|OUT                  { \p s -> TokenOut p}
+  \{                       { \p s -> TokenLBrace p}
+  \}                       { \p s -> TokenRBrace p}
   processStream            { \p s -> TokenProcessStream p}
+  R                        { \p s -> TokenRow p}
+  S                        { \p s -> TokenSequence p}
+  acc                      { \p s -> TokenAccumalator p}
+  streams                  { \p s -> TokenStreams p}
   head                     { \p s -> TokenHead p}
   tail                     { \p s -> TokenTail p}
   length                   { \p s -> TokenLength p}
@@ -20,11 +27,8 @@ $white+                    ;
   \".*\"                   { \p s -> TokenString p (read s)}
   $digit+                  { \p s -> TokenInt p (read s) } 
   $alpha+                  { \p s -> TokenVar p s}
-  R                        { \p s -> TokenRow p}
-  S                        { \p s -> TokenSequence p}
-  streams                  { \p s -> TokenStreams p}
   \[                       { \p s -> TokenLBracket p}
-  \[                       { \p s -> TokenRBracket p}
+  \]                       { \p s -> TokenRBracket p}
   \=                       { \p s -> TokenEq p}
   \=\=                     { \p s -> TokenEqEq p}
   \!\=                     { \p s -> TokenNotEq p}
@@ -37,8 +41,6 @@ $white+                    ;
   \(                       { \p s -> TokenLParen p}
   \)                       { \p s -> TokenRParen p}
   \:                       { \p s -> TokenColon p}
-  \{                       { \p s -> TokenLBrace p}
-  \}                       { \p s -> TokenRBrace p}
   \!                       { \p s -> TokenNeg p}
   \!\!                     { \p s -> TokenElemAt p}
   \&\&                     { \p s -> TokenAnd p}
@@ -88,6 +90,9 @@ data Token =
   TokenAnd AlexPosn           |
   TokenStreams AlexPosn       |
   TokenSequence AlexPosn      |
+  TokenAccumalator AlexPosn   |
+  TokenStart AlexPosn         |
+  TokenEnd AlexPosn           |
   TokenRow AlexPosn           |
   TokenOr AlexPosn            |
   TokenLess AlexPosn          |
@@ -126,6 +131,7 @@ tokenPosn (TokenOut (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenLength (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenVar (AlexPn a l c) _) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenColon (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
+tokenPosn (TokenAccumalator (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenRBrace(AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenTo(AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenLBrace (AlexPn a l c)) = show(l) ++ ":" ++ show(c)

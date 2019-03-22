@@ -9,7 +9,8 @@ import Tokens
 %token 
     int             { TokenInt _ $$ } 
     var             { TokenVar _ $$ } 
-    eq              { TokenEq _ } 
+    eq              { TokenEq _ }
+    acc             { TokenAccumalator _} 
     '+'             { TokenPlus _ }
     concat          { TokenConcat _}
     elemAt          { TokenElemAt _}
@@ -34,8 +35,8 @@ import Tokens
 	  rbracket        {TokenRBracket _}
 	  lparen          {TokenLParen _}
 	  rparen          {TokenRParen _}
-	  lbrace          {TokenLBrace _}
-	  rbrace          {TokenRBrace _}
+	  --lbrace          {TokenLBrace _}
+	  --rbrace          {TokenRBrace _}
 	  boolean         {TokenBool _ $$}
 	  --colon           {TokenColon _}
 	  neg             {TokenNeg _}
@@ -64,26 +65,21 @@ import Tokens
 
 %%
 
-program : lbrace stmt_list rbrace {Main $2}
-        | func_Def_List {Declarations $1}
-
+program : statement_list {Main $1}
+ 
 
 func_Def : var lparen param_list rparen eq expr {Def $1 $3 $6 }
 
 
-func_Def_List : list_func_def {FuncDefList $1}
+statement_list : line { [$1] }
+               | line semi statement_list{ $1 : $3}
+               | {--Empty--} {[]} 
 
+line : stmt {Statement $1}
+     | func_Def {Definition $1}
 
-list_func_def : func_Def { [$1] }
-              | func_Def comma list_func_def { $1 : $3 }
-              --| {--Empty--} {[]}
-
-stmt_list : statement_list {Statements $1}
-
-statement_list : stmt { [$1] }
-               | stmt semi statement_list{ $1 : $3}
 		  
-stmt : out_stmt {OutStmt ($1) }
+stmt : out_stmt {OutStmt $1 }
      | process_stream_stmt {ProcessStreamStmt $1}
      | conditional_stmt {CondStmt $1}
 
@@ -99,7 +95,7 @@ func_stmt : var lparen param_list rparen {Call $1 $3}
 
 list_params : expr comma list_params { $1 : $3 }
             | expr { [$1] }
-          --| {--Empty--} {[]}
+            | {--Empty--} {[]}
 
 param_list : list_params { ParamList $1 }
 
@@ -107,14 +103,15 @@ conditional_expr : if lparen bool_options rparen then lparen expr rparen else lp
           
 
 expr : bool_expr {BoolExpr $1}
+     | math_expr {MathExpr $1}
 	   | conditional_expr {CondExpr $1}
 	   | list_expr {ListExpr $1}
      | list_func_expr {ListFuncExpr $1}
-     | math_expr {MathExpr $1}
      | var {Var $1}
      | out_stmt {OutExpr $1}
      | process_stream_stmt {ProcessStreamExpr $1}
      | string {StringExpr $1}
+     | acc {Accumalator}
 
 list_func_expr : head lparen list_options rparen {Head $3}
                | list_options elemAt math_options {ElemAt $1 $3}
@@ -122,17 +119,26 @@ list_func_expr : head lparen list_options rparen {Head $3}
 
 math_options : math_expr {OptionMathExpr $1}
              | func_stmt {MathFunc $1}
+             | out_stmt {MathOut $1 }
+             | process_stream_stmt {MathProcessStream $1}
              | var {MathVar $1}
+             | acc {MathAccumalator}
 
 
 list_options : list_expr {OptionListExpr $1}
              | func_stmt {ListFunc $1}
              | var {ListVar $1}
+             | out_stmt {ListOut $1 }
+             | process_stream_stmt {ListProcessStream $1}
+             | acc {ListAccumalator}
 
 
 bool_options : bool_expr {OptionBoolExpr $1}
              | func_stmt {BoolFunc $1}
-             | var {BoolVar $1} 
+             | var {BoolVar $1}
+             | out_stmt {BoolOut $1 }
+             | process_stream_stmt {BoolProcessStream $1}
+             | acc {BoolAccumalator}
 
 
 bool_expr : boolean {BoolVal (stringToBool ($1)) }
@@ -168,7 +174,7 @@ list_expr : lbracket list rbracket {List $2}
 
 list : expr comma list {$1 : $3 }
      | expr { [$1] }
-     --| {--Empty--} {[]}
+     | {--Empty--} {[]}
 
 {
 
@@ -179,17 +185,20 @@ stringToBool "False" = False
 
 parseError :: [Token] -> a
 parseError [] = error "Unknown Parse Error" 
-parseError (t:ts) = error ("Parse error at line:column " ++ (tokenPosn t))
+parseError (t:ts) = error ("Parse error at line:column " ++ (tokenPosn t) ++ " " ++ (show t) )
 
-data Program = Main Stmt_List 
-             | Declarations FuncDef_List deriving (Eq,Show)
+data Program = Main [Line] deriving (Eq,Show)
 
-data Stmt_List = Statements [Stmt] deriving (Eq,Show)
+data Line = Statement Stmt
+          | Definition Func_Def
+          deriving (Eq,Show)
+
 
 data Stmt = ProcessStreamStmt Process_Stream_Func
           | OutStmt Out_Func
           | CondStmt Cond_stmt
           deriving (Eq,Show)
+
 
 --Iterator: (<start>, <end>, <incr value>)
 data IteratorFromTo = Iterator Math_options Math_options Math_options deriving (Eq,Show)
@@ -224,9 +233,9 @@ data Expr = Func_stmt
           | StringExpr String
           | ProcessStreamExpr Process_Stream_Func
           | OutExpr Out_Func
+          | Accumalator
           deriving (Eq,Show)
-
-
+ 
 data List_Func = Head List_options
                | ElemAt List_options Math_options
                deriving (Eq,Show)
@@ -259,11 +268,29 @@ data Math_expr = IntVal Int
 
 data Math_op = Plus | Minus | Multiply | Divide | Power deriving (Eq,Show)
 
-data Math_options = OptionMathExpr Math_expr | MathFunc Func_stmt | MathVar String deriving (Eq,Show)
+data Math_options = OptionMathExpr Math_expr 
+                  | MathFunc Func_stmt 
+                  | MathVar String
+                  | MathOut Out_Func
+                  | MathProcessStream Process_Stream_Func
+                  | MathAccumalator
+                  deriving (Eq,Show)
 
-data List_options = OptionListExpr List_expr | ListFunc Func_stmt | ListVar String deriving (Eq,Show)
+data List_options = OptionListExpr List_expr 
+                  | ListFunc Func_stmt 
+                  | ListVar String 
+                  | ListOut Out_Func
+                  | ListProcessStream Process_Stream_Func
+                  | ListAccumalator 
+                  deriving (Eq,Show)
 
-data Bool_options = OptionBoolExpr Bool_expr | BoolFunc Func_stmt | BoolVar String deriving (Eq,Show)
+data Bool_options = OptionBoolExpr Bool_expr 
+                  | BoolFunc Func_stmt 
+                  | BoolVar String
+                  | BoolOut Out_Func
+                  | BoolProcessStream Process_Stream_Func
+                  | BoolAccumalator
+                  deriving (Eq,Show)
 
 data Cond_expr = Cond Bool_options Expr Expr 
                deriving (Eq,Show)
