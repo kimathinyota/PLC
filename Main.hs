@@ -11,10 +11,12 @@ main = catch main' noParse
 tokens' fileName  = do sourceText <- readFile (fileName)
                        return ((alexScanTokens sourceText))
 
+
+--(show parsedProg)
 cool' fileName = do sourceText <- readFile (fileName)
                     putStrLn ("Parsing : " ++ sourceText)
                     let parsedProg = parseCalc (alexScanTokens sourceText)
-                    putStrLn ("Parsed as " ++ (show parsedProg))
+                    putStrLn ("Parsed as " ++ (show parsedProg) )
 
 main' = do (fileName : _ ) <- getArgs 
            sourceText <- readFile fileName

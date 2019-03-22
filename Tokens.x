@@ -13,6 +13,8 @@ $white+                    ;
   then                     { \p s -> TokenThen p}
   else                     { \p s -> TokenElse p}
   out|OUT                  { \p s -> TokenOut p}
+  EOF                      { \p s -> TokenEOF p}
+  EOL                      { \p s -> TokenEOL p}
   \{                       { \p s -> TokenLBrace p}
   \}                       { \p s -> TokenRBrace p}
   processStream            { \p s -> TokenProcessStream p}
@@ -54,54 +56,54 @@ $white+                    ;
 {
 
 
-
-data Token =  
-  TokenInt AlexPosn Int       |
-  TokenString AlexPosn String | 
-  TokenEq AlexPosn            |
-  TokenPlus AlexPosn          |
-  TokenMinus AlexPosn         |
-  TokenMultiply AlexPosn      |
-  TokenDiv AlexPosn           |
-  TokenExp AlexPosn           |
-  TokenLParen AlexPosn        |
-  TokenConcat AlexPosn        |
-  TokenRParen AlexPosn        |
-  TokenLBracket AlexPosn      |
-  TokenRBracket AlexPosn      |
-  TokenIf AlexPosn            |
-  TokenThen AlexPosn          |
-  TokenElse AlexPosn          |
-  TokenHead AlexPosn          |
-  TokenElemAt AlexPosn        |
-  TokenTail AlexPosn          |
-  TokenOut AlexPosn           |
-  TokenProcessStream AlexPosn |
-  TokenLength AlexPosn        |
-  TokenColon AlexPosn         |
-  TokenVar AlexPosn String    |
-  TokenEqEq AlexPosn          |
-  TokenNotEq AlexPosn         |
-  TokenRBrace AlexPosn        |
-  TokenLBrace AlexPosn        |
-  TokenBool AlexPosn String   |
-  TokenTo AlexPosn            |
-  TokenNeg AlexPosn           |
-  TokenAnd AlexPosn           |
-  TokenStreams AlexPosn       |
-  TokenSequence AlexPosn      |
-  TokenAccumalator AlexPosn   |
-  TokenStart AlexPosn         |
-  TokenEnd AlexPosn           |
-  TokenRow AlexPosn           |
-  TokenOr AlexPosn            |
-  TokenLess AlexPosn          |
-  TokenGreater AlexPosn       |
-  TokenLessEqual AlexPosn     |
-  TokenGreaterEqual AlexPosn  |
-  TokenSemi AlexPosn          |
-  TokenComma AlexPosn
-  deriving (Eq,Show) 
+data Token = TokenInt {pos :: AlexPosn, int :: Int}       
+           | TokenString {pos :: AlexPosn, string :: String}
+           | TokenEq {pos :: AlexPosn}
+           | TokenPlus {pos :: AlexPosn}
+           | TokenMinus {pos :: AlexPosn}
+           | TokenMultiply {pos :: AlexPosn}
+           | TokenDiv {pos :: AlexPosn}
+           | TokenExp {pos :: AlexPosn}
+           | TokenLParen {pos :: AlexPosn}
+           | TokenEOF {pos :: AlexPosn}
+           | TokenEOL {pos :: AlexPosn}
+           | TokenConcat {pos :: AlexPosn}
+           | TokenRParen {pos :: AlexPosn}
+           | TokenLBracket {pos :: AlexPosn}
+           | TokenRBracket {pos :: AlexPosn}
+           | TokenIf {pos :: AlexPosn}
+           | TokenThen {pos :: AlexPosn}
+           | TokenElse {pos :: AlexPosn}
+           | TokenHead {pos :: AlexPosn}
+           | TokenElemAt {pos :: AlexPosn}
+           | TokenTail {pos :: AlexPosn}
+           | TokenOut {pos :: AlexPosn}
+           | TokenProcessStream {pos :: AlexPosn}
+           | TokenLength {pos :: AlexPosn}
+           | TokenColon {pos :: AlexPosn}
+           | TokenVar {pos :: AlexPosn, string :: String} 
+           | TokenEqEq {pos :: AlexPosn}
+           | TokenNotEq {pos :: AlexPosn}
+           | TokenRBrace {pos :: AlexPosn}
+           | TokenLBrace {pos :: AlexPosn}
+           | TokenBool {pos :: AlexPosn, string :: String} 
+           | TokenTo {pos :: AlexPosn}
+           | TokenNeg {pos :: AlexPosn}
+           | TokenAnd {pos :: AlexPosn}
+           | TokenStreams {pos :: AlexPosn}
+           | TokenSequence {pos :: AlexPosn}
+           | TokenAccumalator {pos :: AlexPosn}
+           | TokenStart {pos :: AlexPosn}
+           | TokenEnd {pos :: AlexPosn}
+           | TokenRow {pos :: AlexPosn}
+           | TokenOr {pos :: AlexPosn}
+           | TokenLess {pos :: AlexPosn}
+           | TokenGreater {pos :: AlexPosn}
+           | TokenLessEqual {pos :: AlexPosn}
+           | TokenGreaterEqual {pos :: AlexPosn}
+           | TokenSemi {pos :: AlexPosn}
+           | TokenComma {pos :: AlexPosn}
+           deriving (Eq,Show) 
   
 tokenPosn :: Token -> String
 tokenPosn (TokenInt (AlexPn a l c) _) = show(l) ++ ":" ++ show(c)
@@ -111,6 +113,8 @@ tokenPosn (TokenEqEq (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenNotEq (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenPlus (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenMinus (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
+tokenPosn (TokenEOF (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
+tokenPosn (TokenEOL (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenMultiply (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenDiv (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenExp(AlexPn a l c)) = show(l) ++ ":" ++ show(c)
@@ -146,4 +150,5 @@ tokenPosn (TokenGreaterEqual (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenSemi (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenComma (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
 tokenPosn (TokenConcat (AlexPn a l c)) = show(l) ++ ":" ++ show(c)
+
 }
