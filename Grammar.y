@@ -21,7 +21,7 @@ import Tokens
 	  then            {TokenThen}
 	  else            {TokenElse}
 	  out             {TokenOut}
-    to              {TokenTo}
+    --to              {TokenTo}
 	  processStream   {TokenProcessStream}
 	  head            {TokenHead}
     rowList         {TokenRow}
@@ -37,7 +37,7 @@ import Tokens
 	  lbrace          {TokenLBrace _}
 	  rbrace          {TokenRBrace _}
 	  boolean         {TokenBool _ $$}
-	  colon           {TokenColon _}
+	  --colon           {TokenColon _}
 	  neg             {TokenNeg _}
     noteq           {TokenNotEq _}
     eqeq            {TokenEqEq _}
@@ -64,7 +64,8 @@ import Tokens
 
 %%
 
-program : stmt_list {Prog $1}
+program : lbrace stmt_list rbrace {Prog $1}
+        | func_Def_List {$1}
 
 
 func_Def : var lparen param_list rparen eq expr {Def $1 $3 $6 }
@@ -77,21 +78,20 @@ list_func_def : func_Def { [$1] }
               | func_Def comma list_func_def { $1 : $3 }
               | {--Empty--} {[]}
 
-stmt_list : stmt { $1 }
-          | stmt_list semi stmt{Line $1 $3}
-          | conditional_stmt {$1}
+stmt_list : statement_list {Statements $1}
+
+statement_list : stmt { [$1] }
+               | stmt semi stmt_list{ $1 : $3}
 		  
 stmt : out_stmt {$1}
      | process_stream_stmt {$1}
+     | conditional_stmt {$1}
 
 out_stmt : out lparen expr rparen {Out $3}
 
-output : expr {NoSE $1}
-       | stmt {SE $1}
-
 iteratorFromTo : math_options comma math_options comma math_options {Iterator $1 $3 $5} 
 
-process_stream_stmt : processStream lparen output comma output comma iteratorFromTo rparen {ProcessStream $3 $5 $7}
+process_stream_stmt : processStream lparen expr comma expr comma iteratorFromTo rparen {ProcessStream $3 $5 $7}
 	 
 conditional_stmt : if lparen bool_options rparen then lparen stmt rparen else lparen stmt rparen {ProcCond $3 $7 $11 }
 	 
@@ -106,21 +106,29 @@ expr : bool_expr {BoolExpr $1}
 	   | list_expr {$1}
      | list_func_expr {$1}
      | math_expr {MathExpr $1}
+     | var {Var var}
+     | out_stmt {$1}
+     | process_stream_stmt {$1}
+     | string {StringExpr $1}
 
 list_func_expr : head lparen list_expr rparen {Head $3}
                | list_expr elemAt math_expr {ElemAt $1 $3}
+
 
 math_options : math_expr {MathExpr $1}
              | func_stmt {MathFunc $1}
              | var {MathVar $1}
 
+
 list_options : list_expr {ListExpr $1}
              | func_stmt {ListFunc $1}
              | var {ListVar $1}
 
+
 bool_options : bool_expr {BoolExpr $1}
              | func_stmt {BoolFunc $1}
              | var {BoolVar $1} 
+
 
 bool_expr : boolean { stringToBool (boolean) }
           | math_options eqeq math_options {$1 Equalto $3}
@@ -135,7 +143,6 @@ bool_expr : boolean { stringToBool (boolean) }
 		      | lparen bool_expr rparen {$2}
 
 
-
 conditional_expr : if lparen bool_options rparen then lparen expr rparen else lparen expr rparen {Cond_expr $3 $7 $11}
 
 
@@ -148,7 +155,6 @@ math_expr : int {$1}
           | length lparen list_options rparen {Length $3}
 		      | lparen math_expr rparen {$2}
           
-
 list_expr : lbracket list rbracket {List $2}
           | tail lparen list_options rparen {Tail $3}
 		      | list_options concat list_options {Concat $1 $3}
@@ -157,11 +163,9 @@ list_expr : lbracket list rbracket {List $2}
           | streams {Streams}
           | lparen list_expr rparen {$2}
 
-
 list : expr comma list {$1 : $3 }
      | expr { [$1] }
      --| {--Empty--} {[]}
-
 
 {
 
@@ -174,7 +178,8 @@ parseError :: [Token] -> a
 parseError [] = error "Unknown Parse Error" 
 parseError (t:ts) = error ("Parse error at line:column " ++ (tokenPosn t))
 
-data Program = Prog Stmt_List deriving (Eq,Show)
+data Program = Prog Stmt_List 
+             | FuncDef_List deriving (Eq,Show)
 
 data Stmt_List = Statements [Stmt] deriving (Eq,Show)
 
@@ -186,10 +191,9 @@ data Stmt = Process_Stream_Func
 --Iterator: (<start>, <end>, <incr value>)
 data IteratorFromTo = Iterator Math_options Math_options Math_options deriving (Eq,Show)
 
-data Output = NoSE Expr | SE Stmt deriving (Eq,Show)
 
---Process Stream: processStream(<accumalator initial>,<output functions>, <accumalator functions>, IteratorFromTo)
-data Process_Stream_Func = ProcessStream Expr Output Output IteratorFromTo
+--Process Stream: processStream(<accumalator initial>,<output functions>, <accumalator function>, IteratorFromTo)
+data Process_Stream_Func = ProcessStream Expr Expr Expr IteratorFromTo
                          deriving (Eq,Show)
 
 data Out_Func = Out Expr
@@ -213,6 +217,8 @@ data Expr = Func_stmt
           | Cond_expr
           | List_expr 
           | List_Func
+          | Var String
+          | StringExpr String
           deriving (Eq,Show)
 
 
@@ -264,5 +270,4 @@ data List_expr = List [Expr]
                | Sequence Math_options
                | Streams   
                deriving (Eq,Show)
-
 }
