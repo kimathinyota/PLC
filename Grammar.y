@@ -117,6 +117,7 @@ expr : bool_expr {BoolExpr $1}
 
 list_func_expr : head lparen list_options rparen {Head $3 (pos $1)}
                | list_options elemAt math_options {ElemAt $1 $3 (pos $2)}
+               | lparen list_func_expr rparen {$2}
 
 
 math_options : math_expr {OptionMathExpr $1}
