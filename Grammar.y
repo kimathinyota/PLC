@@ -104,6 +104,7 @@ conditional_expr : if lparen bool_options rparen then lparen expr rparen else lp
           
 
 expr : bool_expr {BoolExpr $1}
+     | func_stmt {FuncStmt $1}
      | math_expr {MathExpr $1}
 	   | conditional_expr {CondExpr $1}
 	   | list_expr {ListExpr $1}
@@ -190,63 +191,63 @@ parseError :: [Token] -> a
 parseError [] = error "Unknown Parse Error" 
 parseError (t:ts) = error ("Parse error at line:column " ++ (tokenPosn t) ++ " " ++ (show t) )
 
-data Program = Main [Line] deriving (Eq,Show)
+data Program = Main { lines :: [Line]} deriving (Eq,Show)
 
-data Line = Statement Stmt  
-          | Definition Func_Def
+data Line = Statement { stmt :: Stmt}  
+          | Definition { def :: Func_Def}
           deriving (Eq,Show)
 
 
-data Stmt = ProcessStreamStmt Process_Stream_Func
-          | OutStmt Out_Func
-          | CondStmt Cond_stmt
+data Stmt = ProcessStreamStmt { processStream :: Process_Stream_Func}
+          | OutStmt { out :: Out_Func}
+          | CondStmt { cond :: Cond_stmt}
           deriving (Eq,Show)
 
 
 --Iterator: (<start>, <end>, <incr value>)
-data IteratorFromTo = Iterator Math_options Math_options Math_options deriving (Eq,Show)
+data IteratorFromTo = Iterator { start :: Math_options, end :: Math_options, incr :: Math_options} deriving (Eq,Show)
 
 
 --Process Stream: processStream(<accumalator initial>,<output functions>, <accumalator function>, IteratorFromTo)
-data Process_Stream_Func = ProcessStream Expr Expr Expr IteratorFromTo AlexPosn
+data Process_Stream_Func = ProcessStream {init::Expr, output::Expr, acc :: Expr , iterator::IteratorFromTo,  processStreamPos::AlexPosn}
                          deriving (Eq,Show)
 
-data Out_Func = Out Expr AlexPosn
+data Out_Func = Out {expr::Expr, outPos::AlexPosn}
               deriving (Eq,Show)
 
-data Func_Def = Def String Param_list Expr AlexPosn
+data Func_Def = Def { defName::String, defParams::Param_list, declr::Expr, defPos::AlexPosn}
               deriving (Eq,Show)
 
-data FuncDef_List = FuncDefList [Func_Def] AlexPosn
+data FuncDef_List = FuncDefList {defs::[Func_Def], defListPos::AlexPosn}
                  deriving (Eq,Show)
 
-data Func_stmt = Call String Param_list AlexPosn deriving (Eq,Show)
+data Func_stmt = Call {funcName::String, params::Param_list, callPos::AlexPosn} deriving (Eq,Show)
 
-data Cond_stmt = ProcCond Bool_options Stmt Stmt AlexPosn deriving (Eq,Show)
+data Cond_stmt = ProcCond {stmtCond::Bool_options, trueStmt::Stmt, falseStmt::Stmt, condStmtPos::AlexPosn} deriving (Eq,Show)
 
-data Param_list = ParamList [Expr] deriving (Eq,Show)
+data Param_list = ParamList { paramlist::[Expr]} deriving (Eq,Show)
 
-data Expr = Func_stmt  
-          | MathExpr Math_expr 
-          | BoolExpr Bool_expr 
-          | CondExpr Cond_expr
-          | ListExpr List_expr 
-          | ListFuncExpr List_Func
-          | Var String AlexPosn
-          | StringExpr String AlexPosn
-          | ProcessStreamExpr Process_Stream_Func
-          | OutExpr Out_Func
-          | Accumalator AlexPosn
+data Expr = FuncStmt Func_stmt  
+          | MathExpr {mexpr::Math_expr} 
+          | BoolExpr {bexpr::Bool_expr} 
+          | CondExpr {cexpr::Cond_expr}
+          | ListExpr {lexpr::List_expr }
+          | ListFuncExpr {listFuncExpr::List_Func}
+          | Var {var::String, varPos::AlexPosn}
+          | StringExpr {nameString::String, stringPos::AlexPosn}
+          | ProcessStreamExpr {processStreamExpr::Process_Stream_Func}
+          | OutExpr {outExpr::Out_Func}
+          | Accumalator {accPos::AlexPosn}
           deriving (Eq,Show)
  
-data List_Func = Head List_options AlexPosn
-               | ElemAt List_options Math_options AlexPosn
+data List_Func = Head {listHead::List_options, headPos::AlexPosn}
+               | ElemAt {listInput::List_options, atMath::Math_options, listFuncPos::AlexPosn}
                deriving (Eq,Show)
 
-data Bool_expr = BoolVal Bool AlexPosn
-               | MathToBool Math_options Math_to_bool Math_options AlexPosn
-               | BoolToBool Bool_options Bool_to_bool Bool_options AlexPosn
-               | Neg Bool_options AlexPosn
+data Bool_expr = BoolVal {boolVal::Bool, boolPos::AlexPosn}
+               | MathToBool {mathA::Math_options, mathToBoolOp::Math_to_bool, mathB::Math_options, mathToBoolPos::AlexPosn}
+               | BoolToBool {boolA::Bool_options, boolToBoolOp::Bool_to_bool, boolB::Bool_options, boolToBoolPos::AlexPosn}
+               | Neg {boolNeg::Bool_options, posNeg::AlexPosn}
                deriving (Eq,Show)
 
 data Math_to_bool = Equal 
@@ -258,52 +259,52 @@ data Math_to_bool = Equal
                   deriving (Eq,Show)
 
 data Bool_to_bool = Or
-                  | And 
+                  | And
                   deriving (Eq,Show)
 
-data Math_expr = IntVal Int AlexPosn 
-               | MathOp Math_options Math_op Math_options AlexPosn 
-               | Length List_options AlexPosn
-               | EOF AlexPosn
-               | EOL AlexPosn
+data Math_expr = IntVal {intVal::Int, intPos::AlexPosn} 
+               | MathOp {mathOne::Math_options, mathOp::Math_op, mathTwo::Math_options, opPos::AlexPosn} 
+               | Length {listLength::List_options, lengthPos::AlexPosn}
+               | EOF {eofPos::AlexPosn}
+               | EOL {eolPos::AlexPosn}
                deriving (Eq,Show)
 
 
 data Math_op = Plus | Minus | Multiply | Divide | Power deriving (Eq,Show)
 
-data Math_options = OptionMathExpr Math_expr 
-                  | MathFunc Func_stmt 
-                  | MathVar String AlexPosn 
-                  | MathOut Out_Func
-                  | MathProcessStream Process_Stream_Func
-                  | MathAccumalator AlexPosn
+data Math_options = OptionMathExpr {mathExpr::Math_expr} 
+                  | MathFunc {mathFunc::Func_stmt} 
+                  | MathVar {mathVar::String, mathVarPos::AlexPosn} 
+                  | MathOut {mathOut::Out_Func}
+                  | MathProcessStream {mathPS::Process_Stream_Func}
+                  | MathAccumalator {mathAccPos::AlexPosn}
                   deriving (Eq,Show)
 
-data List_options = OptionListExpr List_expr 
-                  | ListFunc Func_stmt
-                  | ListVar String AlexPosn 
-                  | ListOut Out_Func
-                  | ListProcessStream Process_Stream_Func
-                  | ListAccumalator AlexPosn
+data List_options = OptionListExpr {listExpr::List_expr }
+                  | ListFunc {listFunc::Func_stmt}
+                  | ListVar {listVar::String, listVarPos::AlexPosn} 
+                  | ListOut {listOut::Out_Func}
+                  | ListProcessStream {listPS::Process_Stream_Func}
+                  | ListAccumalator {listAccPos::AlexPosn}
                   deriving (Eq,Show)
 
-data Bool_options = OptionBoolExpr Bool_expr 
-                  | BoolFunc Func_stmt 
-                  | BoolVar String AlexPosn
-                  | BoolOut Out_Func
-                  | BoolProcessStream Process_Stream_Func
-                  | BoolAccumalator AlexPosn
+data Bool_options = OptionBoolExpr {boolExpr::Bool_expr} 
+                  | BoolFunc {boolFunc::Func_stmt} 
+                  | BoolVar {boolVar::String, boolVarPos::AlexPosn}
+                  | BoolOut {boolOut::Out_Func}
+                  | BoolProcessStream {boolPS::Process_Stream_Func}
+                  | BoolAccumalator {boolAccPos::AlexPosn}
                   deriving (Eq,Show)
 
-data Cond_expr = Cond Bool_options Expr Expr AlexPosn
+data Cond_expr = Cond {condExpr::Bool_options, trueExpr::Expr, falseExpr::Expr, condExprPos::AlexPosn}
                deriving (Eq,Show)
 
-data List_expr = List [Expr] AlexPosn
-               | Concat List_options List_options AlexPosn
-               | Tail List_options AlexPosn
-               | Row Math_options AlexPosn
-               | Sequence Math_options AlexPosn
-               | Streams AlexPosn    
+data List_expr = List { list::[Expr], listPos::AlexPosn}
+               | Concat {listA::List_options, listB::List_options, concatPos::AlexPosn}
+               | Tail {listTail::List_options, tailPos::AlexPosn}
+               | Row {rowMath::Math_options, rowPos::AlexPosn}
+               | Sequence {seqMath::Math_options, seqPos::AlexPosn}
+               | Streams {streamPos::AlexPosn}    
                deriving (Eq,Show)
 
 

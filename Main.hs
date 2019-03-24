@@ -1,5 +1,6 @@
 import Tokens
 import Grammar
+import Evaluation
 import System.Environment
 import Control.Exception
 import System.IO
@@ -12,11 +13,11 @@ tokens' fileName  = do sourceText <- readFile (fileName)
                        return ((alexScanTokens sourceText))
 
 
---(show parsedProg)
 cool' fileName = do sourceText <- readFile (fileName)
                     putStrLn ("Parsing : " ++ sourceText)
                     let parsedProg = parseCalc (alexScanTokens sourceText)
                     putStrLn ("Parsed as " ++ (show parsedProg) )
+                    return (evaluateProgram parsedProg) 
 
 main' = do (fileName : _ ) <- getArgs 
            sourceText <- readFile fileName
