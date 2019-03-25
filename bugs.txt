@@ -1,9 +1,10 @@
 Things that keep me up at night:
 0) If tomatoes are fruit then isn't ketchup a smoothie ? Genuinely asking ?
-1) EOF needs to return infinite integer or equivalent
+1) EOF needs to return infinite integer or maybe it can be a special condition
 2) Problem with ([1,2,3,4] !! 3) + 4 . This is a grammar problem, i tried to change grammar to fix this and got 17 reduce reduce errors so i was like nah i'm good. I use elem(xs,x) = xs !! 3 (as a work around since function needs to be evaluated) -> not a good solution.
 3) Errors need to be moved stderr. Currently they are just outputted to stdout. This is done naturally by out function -> if an expr evaluates to an error (Null [errors]) it displays the error. 
 4) Errors: Wording of the current errors could be improved. Maybe we could meme it and start each error with YOUURR WROOONG.
+5) Need a name for our language
 
 Fixed bugs:
 0) incr in processStream doesn't work for values > 1. Tried to create an ignoreLine function but it didn't work :-( . For example processStream(...,0,100,2).
