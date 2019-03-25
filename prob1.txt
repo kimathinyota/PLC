@@ -1,0 +1,1 @@
+processStream(0, out( if(acc==0) then ([0]) else ([elem(elem(streams, acc-1),0)]) )  ,acc+1,0,100,1);
