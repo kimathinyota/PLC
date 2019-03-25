@@ -78,10 +78,8 @@ evaluateStmt defs vars pSE (ProcessStreamStmt x) = evaluateProcessStreamStmt def
 evaluateStmt defs vars pSE (OutStmt x) = evaluateOutStmt defs vars pSE x
 evaluateStmt defs vars pSE (CondStmt x) = evaluateCondStmt defs vars pSE x
 
-readInt x = (read x) :: Int
-getRow x = takeWhile( \x->not(x=='\n')  ) x
-getInts :: String -> [Int]
-getInts (word) = [ readInt(x:"") | x <- getRow(word) , not(x==' ')]
+getRow :: String -> [Int]
+getRow (word) = map read $ words word :: [Int]
 
 
 --processStream pSE -- itr pSExpr pSE
@@ -101,7 +99,7 @@ handleProcessStream defs vars pSE start end itr func   = do done <- isEOF
                                                                then (return (currentValue pSE))
                                                                else (do row <- getLine
                                                                         --ignoreLine (itr-0)
-                                                                        let rowInt = (getInts row)
+                                                                        let rowInt = (getRow row)
                                                                         let strm = stream $ pSE
                                                                         let newStream = (strm ++ [rowInt] )
                                                                         let currentAcc =  accumalatorValue $ pSE
