@@ -84,6 +84,7 @@ getRow (word) = map read $ words word :: [Int]
 
 --processStream pSE -- itr pSExpr pSE
 
+-- PLEASE FIX
 ignoreLine count = do done <- isEOF
                       if (done || (count<=0) ) 
                          then return ()
@@ -98,7 +99,7 @@ handleProcessStream defs vars pSE start end itr func   = do done <- isEOF
                                                             if (done || (start>=end) ) 
                                                                then (return (currentValue pSE))
                                                                else (do row <- getLine
-                                                                        --ignoreLine (itr-0)
+                                                                        --ignoreLine (itr-1) -> if you can get this function working, it would be great
                                                                         let rowInt = (getRow row)
                                                                         let strm = stream $ pSE
                                                                         let newStream = (strm ++ [rowInt] )
