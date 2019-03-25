@@ -82,8 +82,6 @@ getRow :: String -> [Int]
 getRow (word) = map read $ words word :: [Int]
 
 
---processStream pSE -- itr pSExpr pSE
-
 -- PLEASE FIX
 ignoreLine count = do done <- isEOF
                       if (done || (count<=0) ) 
@@ -92,14 +90,12 @@ ignoreLine count = do done <- isEOF
                                   ignoreLine (count-1) )
 
 
---data IteratorFromTo = Iterator { start :: Math_options, end :: Math_options, incr :: Math_options} deriving (Eq,Show)
---ProcessStream {init::Expr, output::Expr, acc :: Expr , iterator::IteratorFromTo,  processStreamPos::AlexPosn}
 handleProcessStream :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Int -> Int -> Int -> Process_Stream_Func -> (IO Value)
 handleProcessStream defs vars pSE start end itr func   = do done <- isEOF
                                                             if (done || (start>=end) ) 
                                                                then (return (currentValue pSE))
                                                                else (do row <- getLine
-                                                                        --ignoreLine (itr-1) -> if you can get this function working, it would be great
+                                                                        ignoreLine (itr-1) -- -> if you can get this function working, it would be great
                                                                         let rowInt = (getRow row)
                                                                         let strm = stream $ pSE
                                                                         let newStream = (strm ++ [rowInt] )
@@ -110,13 +106,7 @@ handleProcessStream defs vars pSE start end itr func   = do done <- isEOF
                                                                         (case (newAcc,newVal) of
                                                                              (Null err, _ ) -> return (Null (["Error occurred when applying accumalator function " ++ (showPos ( processStreamPos func)) ] ++ err ) )
                                                                              (_, Null err ) -> return (Null (["Error occurred when applying output functions " ++ (showPos (processStreamPos func)) ] ++ err ) )
-                                                                             (acc,output) -> handleProcessStream defs vars (StreamEnvironment acc rowInt newStream output) (start+1) end itr func) )
-
-
--- data ProcessStreamEnvironment = StreamEnvironment { accumalatorValue::Value, currentRow::[Int], stream::[[Int]], currentValue::Value} 
---                              | EmptyPSE
---                              deriving (Eq,Show)
-
+                                                                             (acc,output) -> handleProcessStream defs vars (StreamEnvironment acc rowInt newStream output) (start+itr) end itr func) )
 
 
 evaluateProcessStreamStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Process_Stream_Func -> (IO Value) 
@@ -224,8 +214,6 @@ evaluateFuncStmt defs vars pSE (Call name params pos) = let defErr = getFuncDef 
 
 
 
-
-
 evaluateMexpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Math_expr -> (IO Value)
 evaluateMexpr defs vars pSE (IntVal int pos) = return (IntegerValue int)
 evaluateMexpr defs vars pSE (Length list pos) = do lst <- evaluateListOptions defs vars pSE list
@@ -290,12 +278,6 @@ evaluateBexpr defs vars pSE (MathToBool a Less b pos) = do x <- evaluateMathOpti
                                                               (Null err, _ ) -> return (Null (["Invalid value given to first parameter of < function at " ++ showPos(pos)] ++ err))
                                                               (_, Null err ) -> return (Null (["Invalid value given to second parameter of < function at " ++ showPos(pos)] ++ err) ) )
 
---evaluateBexpr defs vars pSE (MathToBool a Less b pos) = do  x <- evaluateMathOptions defs vars pSE a
---                                                            y <- evaluateMathOptions defs vars pSE b
---                                                           (case (x,y) of 
---                                                              (IntegerValue one, IntegerValue two) -> return (BooleanValue (one<two))
---                                                              (Null err, _ ) -> return (Null (["Invalid value given to first parameter of < function at " ++ showPos(pos)] ++ err))
---                                                              (_, Null err ) -> return (Null (["Invalid value given to second parameter of < function at " ++ showPos(pos)] ++ err) ))
 
 evaluateBexpr defs vars pSE (MathToBool a GreaterEqual b pos) = do x <- (evaluateMathOptions defs vars pSE a)
                                                                    y <- evaluateMathOptions defs vars pSE b
