@@ -41,6 +41,14 @@ getFunctionDefinitions [] = []
 getFunctionDefinitions (x:xs) | (isFuncDef x)==True = getDefinition(x) : (getFunctionDefinitions xs)
                               | otherwise = (getFunctionDefinitions xs)
 
+
+data ProcessStreamEnvironment = StreamEnvironment { accumalatorValue::Value, currentRow::[Int], stream::[[Int]], currentValue::Value} 
+                              | EmptyPSE
+                              deriving (Eq,Show)
+
+ 
+
+
 getStatements :: [Line] -> [Stmt]
 getStatements [] = []
 getStatements (x:xs) | (isFuncDef x)==False = (getStatement x) : (getStatements xs)
@@ -56,18 +64,19 @@ data Value = IntegerValue {valInt::Int}
 data CallVariable = Variable {name::String, value::Value} deriving (Eq,Show)
 
 
-evaluateProgram :: Program -> [Value]
+
+evaluateProgram :: Program -> [IO Value]
 evaluateProgram (Main lines) = let stmts = (getStatements lines)
                                    defs = (getFunctionDefinitions lines)
-                               in [ (evaluateStmt defs [] x) | x <- stmts]
+                               in [ (evaluateStmt defs [] EmptyPSE  x ) | x <- stmts]
              
 
 
 
-evaluateStmt :: [Func_Def] -> [CallVariable] ->  Stmt -> (Value)
-evaluateStmt defs vars (ProcessStreamStmt x) = evaluateProcessStreamStmt defs vars x
-evaluateStmt defs vars (OutStmt x) = evaluateOutStmt defs vars x
-evaluateStmt defs vars (CondStmt x) = evaluateCondStmt defs vars x
+evaluateStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment ->  Stmt -> (IO Value)
+evaluateStmt defs vars pSE (ProcessStreamStmt x) = evaluateProcessStreamStmt defs vars pSE x
+evaluateStmt defs vars pSE (OutStmt x) = evaluateOutStmt defs vars pSE x
+evaluateStmt defs vars pSE (CondStmt x) = evaluateCondStmt defs vars pSE x
 
 readInt x = (read x) :: Int
 getRow x = takeWhile( \x->not(x=='\n')  ) x
@@ -75,24 +84,86 @@ getInts :: String -> [Int]
 getInts (word) = [ readInt(x:"") | x <- getRow(word) , not(x==' ')]
 
 
-handleProcessStream stream count endCount = do done <- isEOF
-                                               if (done || (count>=endCount) ) 
-                                                  then return "Test"
-                                                  else (do row <- getLine
-                                                           handleProcessStream (stream ++ [(getInts row)]) (count+1) endCount )
+--processStream pSE -- itr pSExpr pSE
 
-evaluateProcessStreamStmt :: [Func_Def] -> [CallVariable] -> Process_Stream_Func -> (Value) 
-evaluateProcessStreamStmt defs vars processStreamFunc = Null [""]
+ignoreLine count = do done <- isEOF
+                      if (done || (count<=0) ) 
+                         then return ()
+                         else (do row <- getLine
+                                  ignoreLine (count-1) )
 
-evaluateOutStmt :: [Func_Def] -> [CallVariable] -> Out_Func -> (Value) 
-evaluateOutStmt defs vars (Out expr _) = evaluateExpr defs vars expr
 
-evaluateCondStmt :: [Func_Def] -> [CallVariable] -> Cond_stmt -> (Value) 
-evaluateCondStmt defs vars condStmt = let cond = (evaluateBoolOptions defs vars (stmtCond condStmt)) in
-                                          (case cond of 
-                                                (BooleanValue True) -> (evaluateStmt defs vars (trueStmt condStmt)  )
-                                                (BooleanValue False) -> (evaluateStmt defs vars (falseStmt condStmt) )
-                                                (Null errors) -> Null (errors ++ [( "Invalid condition for if statement at  " ++ showPos(condStmtPos(condStmt)) ) ]) )
+--data IteratorFromTo = Iterator { start :: Math_options, end :: Math_options, incr :: Math_options} deriving (Eq,Show)
+--ProcessStream {init::Expr, output::Expr, acc :: Expr , iterator::IteratorFromTo,  processStreamPos::AlexPosn}
+handleProcessStream :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Int -> Int -> Int -> Process_Stream_Func -> (IO Value)
+handleProcessStream defs vars pSE start end itr func   = do done <- isEOF
+                                                            if (done || (start>=end) ) 
+                                                               then (return (currentValue pSE))
+                                                               else (do row <- getLine
+                                                                        --ignoreLine (itr-0)
+                                                                        let rowInt = (getInts row)
+                                                                        let strm = stream $ pSE
+                                                                        let newStream = (strm ++ [rowInt] )
+                                                                        let currentAcc =  accumalatorValue $ pSE
+                                                                        let currentVal = currentValue $ pSE 
+                                                                        newAcc <- evaluateExpr defs vars (StreamEnvironment currentAcc rowInt newStream (currentValue$pSE) )  (acc $ func)
+                                                                        newVal <- evaluateExpr defs vars (StreamEnvironment currentAcc rowInt newStream (currentValue$pSE) )  (output $ func)
+                                                                        (case (newAcc,newVal) of
+                                                                             (Null err, _ ) -> return (Null (["Error occurred when applying accumalator function " ++ (showPos ( processStreamPos func)) ] ++ err ) )
+                                                                             (_, Null err ) -> return (Null (["Error occurred when applying output functions " ++ (showPos (processStreamPos func)) ] ++ err ) )
+                                                                             (acc,output) -> handleProcessStream defs vars (StreamEnvironment acc rowInt newStream output) (start+1) end itr func) )
+
+
+-- data ProcessStreamEnvironment = StreamEnvironment { accumalatorValue::Value, currentRow::[Int], stream::[[Int]], currentValue::Value} 
+--                              | EmptyPSE
+--                              deriving (Eq,Show)
+
+
+
+evaluateProcessStreamStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Process_Stream_Func -> (IO Value) 
+evaluateProcessStreamStmt defs vars pSE func = do initAcc <- evaluateExpr defs vars pSE (Grammar.init func)
+                                                  strt <- evaluateMathOptions defs vars pSE (Grammar.start (Grammar.iterator (func)) )
+                                                  end <- evaluateMathOptions defs vars pSE (Grammar.end (Grammar.iterator func))
+                                                  incr <- evaluateMathOptions defs vars pSE (Grammar.incr (Grammar.iterator func))
+                                                  case (initAcc,strt,end,incr) of
+                                                       ((Null err),_,_,_) -> return (Null ( [ "Invalid initial accumalator value " ++ (showPos (processStreamPos func))  ] ++ err) )
+                                                       (_,(Null err),_,_) -> return (Null ( [ "Invalid start value " ++ (showPos (processStreamPos func))  ] ++ err))
+                                                       (_,_,(Null err),_) -> return (Null ( [ "Invalid end value " ++ (showPos (processStreamPos func))  ] ++ err))
+                                                       (_,_,_,(Null err)) -> return (Null ( [ "Invalid increment value " ++ (showPos (processStreamPos func))  ] ++ err))
+                                                       (initAcc,IntegerValue s,IntegerValue e,IntegerValue i) -> if (i >= 0 ) 
+                                                                                                                then handleProcessStream defs vars (StreamEnvironment initAcc [] [] (Null ["No output function was applied."])) s e i func
+                                                                                                                else return (Null ["ProcessStream increment can't be negative."])
+printValue (BooleanValue value) = do putStr ( (show value) ++ " "  )
+printValue (IntegerValue value) = do putStr ( (show value) ++ " "  )
+printValue (ListValue []) = putStrLn ( "" )
+printValue (ListValue (x:xs)) = do x <- (printValue x)
+                                   printValue (ListValue xs)
+
+printValue (Null (xs)) = do putStrLn "Errors "
+                            printListOfStrings xs
+printListOfStrings [] = putStr ("");
+printListOfStrings (x:xs) = do putStrLn (x)
+                               printListOfStrings(xs)
+
+evaluateOutStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment ->  Out_Func -> (IO Value)  
+evaluateOutStmt defs vars pSE (Out (ProcessStreamExpr func) pos) = do x <- evaluateProcessStreamStmt defs vars pSE func
+                                                                      printValue x
+                                                                      return x
+evaluateOutStmt defs vars pSE (Out expr pos) = do e <- evaluateExpr defs vars pSE expr
+                                                  (case e of
+                                                        (Null err) -> (do let v = Null (["Error occurred when evaluating expression at " ++ (showPos pos)] ++ err)
+                                                                          printValue v
+                                                                          return v ) 
+                                                        (value) -> (do printValue value
+                                                                       return (value) ) )
+
+
+evaluateCondStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Cond_stmt -> (IO Value) 
+evaluateCondStmt defs vars pSE condStmt = do cond <- (evaluateBoolOptions defs vars pSE (stmtCond condStmt))
+                                             (case cond of 
+                                                   (BooleanValue True) -> (evaluateStmt defs vars pSE (trueStmt condStmt)  )
+                                                   (BooleanValue False) -> (evaluateStmt defs vars pSE (falseStmt condStmt) )
+                                                   (Null errors) -> return (Null ( [( "Invalid condition for if statement at  " ++ showPos(condStmtPos(condStmt)) ) ] ++ errors) ) )
 
 
 getValueOfVariable :: [CallVariable] -> String -> AlexPosn -> Value
@@ -102,185 +173,203 @@ getValueOfVariable (x:xs) var pos | (name x)==var = (value x)
 
 
 
-evaluateExpr :: [Func_Def] -> [CallVariable] -> Expr -> (Value)
-evaluateExpr defs vars (FuncStmt func) = evaluateFuncStmt defs vars func
-evaluateExpr defs vars (MathExpr mexpr) = evaluateMexpr defs vars mexpr
-evaluateExpr defs vars (CondExpr cexpr) = evaluateCexpr defs vars cexpr
-evaluateExpr defs vars (BoolExpr bexpr) = evaluateBexpr defs vars bexpr
-evaluateExpr defs vars (ListExpr lexpr) = evaluateLexpr defs vars lexpr
-evaluateExpr defs vars (ListFuncExpr func) = evaluateListFuncExpr defs vars func
-evaluateExpr defs vars (Var x pos) = getValueOfVariable vars x pos  
-evaluateExpr defs vars (OutExpr outStmt) = (evaluateOutStmt defs vars outStmt)
-evaluateExpr defs vars (ProcessStreamExpr func) = evaluateProcessStreamStmt defs vars func
-evaluateExpr defs vars (StringExpr x pos) = Null [("Invalid identifier " ++ x ++ " at " ++ (showPos pos))]
-evaluateExpr defs vars (Accumalator pos) = Null [("Accumalator can only be accessed within processStream function call. Error at " ++ (showPos pos))]
-
-
+evaluateExpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Expr -> (IO Value)
+evaluateExpr defs vars pSE (FuncStmt func) = evaluateFuncStmt defs vars pSE func
+evaluateExpr defs vars pSE (MathExpr mexpr) = evaluateMexpr defs vars pSE mexpr
+evaluateExpr defs vars pSE (CondExpr cexpr) = evaluateCexpr defs vars pSE cexpr
+evaluateExpr defs vars pSE (BoolExpr bexpr) = evaluateBexpr defs vars pSE bexpr
+evaluateExpr defs vars pSE (ListExpr lexpr) = evaluateLexpr defs vars pSE lexpr
+evaluateExpr defs vars pSE (ListFuncExpr func) = evaluateListFuncExpr defs vars pSE func
+evaluateExpr defs vars pSE (Var x pos) = return (getValueOfVariable vars x pos  )
+evaluateExpr defs vars pSE (OutExpr outStmt) = evaluateOutStmt defs vars pSE outStmt
+evaluateExpr defs vars pSE (ProcessStreamExpr func) = evaluateProcessStreamStmt defs vars pSE func
+evaluateExpr defs vars pSE (StringExpr x pos) = return (Null [("Invalid identifier " ++ x ++ " at " ++ (showPos pos))])
+evaluateExpr defs vars (StreamEnvironment acc _ _ _) (Accumalator pos) = return acc 
+evaluateExpr defs vars (_) (Accumalator pos) = return (Null [("Accumalator can only be accessed within processStream function call. Error at " ++ (showPos pos))])
+                       
 
 
 getFuncDef :: [Func_Def] -> String -> AlexPosn -> (Error Func_Def)
-
-
-
-
 getFuncDef [] callName pos =  Errors ["Function doesn't exist. Error at " ++(showPos pos) ]
 getFuncDef (x:xs) callName pos | (defName x)==callName = return x
                                | otherwise = (getFuncDef xs callName pos)
 
 
+data CallVariables = CallVariables {callVariables::[CallVariable]} | None [String] deriving (Eq,Show)
 
-returnCallVariables :: [Func_Def] -> [CallVariable] -> Func_Def -> Param_list -> Error [CallVariable]
+returnCallVariables :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Func_Def -> Param_list -> IO CallVariables
 
-returnCallVariables defs vars (Def n (ParamList [] ) _ _ ) (ParamList []) = return []
+returnCallVariables defs vars pSE (Def n (ParamList [] ) _ _ ) (ParamList []) = return (CallVariables [])
 
-returnCallVariables defs vars (Def n (ParamList ((Var x _):xs)) e pos) (ParamList (paramExpr:ys)) = do let val = evaluateExpr defs vars paramExpr
-                                                                                                       case val of 
-                                                                                                            (Null errors) -> Errors (errors ++ ["Error in given parameter at "++(showPos pos)])
-                                                                                                            (_) -> (do cvars <- (returnCallVariables defs vars (Def n (ParamList xs) e pos) (ParamList ys)) 
-                                                                                                                       return ( (Variable x val) : cvars ) )
+returnCallVariables defs vars pSE (Def n (ParamList ((Var x _):xs)) e pos) (ParamList (paramExpr:ys)) = do val <- evaluateExpr defs vars pSE paramExpr
+                                                                                                           (case val of 
+                                                                                                                 (Null errors) -> return (None (["Error in given parameter at "++(showPos pos)] ++ errors))
+                                                                                                                 (_) -> (do cvars <- (returnCallVariables defs vars pSE (Def n (ParamList xs) e pos) (ParamList ys)) 
+                                                                                                                            return (CallVariables ( (Variable x val) : (callVariables cvars) )) )  )
                                                                                                        
 
-returnCallVariables defs vars (Def n (ParamList (_:xs)) e pos) (ParamList (y:ys)) = Errors["Invalid function definition at " ++ (showPos pos)]    
+returnCallVariables defs vars pSE (Def n (ParamList (_:xs)) e pos) (ParamList (y:ys)) = return (None ["Invalid function definition at " ++ (showPos pos)]    )
 
 
 
-evaluateFuncStmt :: [Func_Def] -> [CallVariable] -> Func_stmt -> (Value)
-evaluateFuncStmt defs vars (Call name params pos) = let defErr = getFuncDef defs name pos in
-                                                        (case defErr of 
-                                                              (Valid def)  -> (if (length (paramlist (defParams def)) == length (paramlist (params)))
-                                                                                            then (let callVariables = returnCallVariables defs vars def params in
-                                                                                                      case callVariables of 
-                                                                                                           (Valid callVar) -> evaluateExpr defs callVar (declr def)
-                                                                                                           (Errors errors) -> Null errors )
-                                                                                            else Null ["An invalid number of parameters given to function call at " ++ (showPos pos)])
-                                                              (Errors errors) -> Null errors )
+evaluateFuncStmt :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Func_stmt -> (IO Value)
+evaluateFuncStmt defs vars pSE (Call name params pos) = let defErr = getFuncDef defs name pos in
+                                                            (case defErr of 
+                                                                  (Valid def)  -> (if (length (paramlist (defParams def)) == length (paramlist (params)))
+                                                                                      then (do callVariables <- returnCallVariables defs vars pSE def params
+                                                                                               (case callVariables of 
+                                                                                                     (None errors) -> return (Null errors) 
+                                                                                                     (CallVariables callVar) -> evaluateExpr defs callVar pSE (declr def) ) )
+                                                                                      else return (Null ["An invalid number of parameters given to function call at " ++ (showPos pos)])  )
+                                                                  (Errors errors) -> return (Null errors) )
 
 
 
 
 
-evaluateMexpr :: [Func_Def] -> [CallVariable] -> Math_expr -> (Value)
-evaluateMexpr defs vars (IntVal int pos) = (IntegerValue int)
-evaluateMexpr defs vars (Length list pos) = let lst = evaluateListOptions defs vars list in
-                                                (case lst of 
-                                                      (ListValue list) -> (IntegerValue (length(list)) )
-                                                      (Null err) -> Null (err ++ ["Invalid list given to length function at "++ showPos(pos)]) )
+evaluateMexpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Math_expr -> (IO Value)
+evaluateMexpr defs vars pSE (IntVal int pos) = return (IntegerValue int)
+evaluateMexpr defs vars pSE (Length list pos) = do lst <- evaluateListOptions defs vars pSE list
+                                                   (case lst of 
+                                                      (ListValue list) -> return (IntegerValue (length(list)) )
+                                                      (Null err) -> return (Null (["Invalid list given to length function at "++ showPos(pos)] ++ err) ))
 
-evaluateMexpr defs vars (EOF pos) =  Null [("EOF can only be accessed within processStream function call. Error at " ++ (showPos pos))]
-evaluateMexpr defs vars (EOL pos) =  Null [("EOL can only be accessed within processStream function call. Error at " ++ (showPos pos))]                                        
+evaluateMexpr defs vars pSE (EOF pos) =  return (Null [("EOF can only be accessed within processStream function call. Error at " ++ (showPos pos))])
+evaluateMexpr defs vars pSE (EOL pos) =  return (Null [("EOL can only be accessed within processStream function call. Error at " ++ (showPos pos))] )                                       
 
-evaluateMexpr defs vars (MathOp a Plus b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                    (case (x,y) of 
-                                                          (IntegerValue one, IntegerValue two) -> IntegerValue (one+two)
-                                                          (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of + function at " ++ showPos(pos)])
-                                                          (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of + function at " ++ showPos(pos)]) )                                   
+evaluateMexpr defs vars pSE (MathOp a Plus b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                       y <- (evaluateMathOptions defs vars pSE b)
+                                                       (case (x,y) of 
+                                                          (IntegerValue one, IntegerValue two) -> return (IntegerValue (one+two))
+                                                          (Null err, _ ) -> return (Null (["Invalid value given to first parameter of + function at " ++ showPos(pos)] ++ err))
+                                                          (_, Null err ) -> return (Null (["Invalid value given to second parameter of + function at " ++ showPos(pos)] ++ err) ))                                   
 
-evaluateMexpr defs vars (MathOp a Minus b pos) =let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                    (case (x,y) of 
-                                                          (IntegerValue one, IntegerValue two) -> IntegerValue (one-two)
-                                                          (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of - function at " ++ showPos(pos)])
-                                                          (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of - function at " ++ showPos(pos)]) )
-
-evaluateMexpr defs vars (MathOp a Multiply b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
+evaluateMexpr defs vars pSE (MathOp a Minus b pos) =do  x <- (evaluateMathOptions defs vars pSE a)
+                                                        y <- evaluateMathOptions defs vars pSE b
                                                         (case (x,y) of 
-                                                              (IntegerValue one, IntegerValue two) -> IntegerValue (one*two)
-                                                              (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of * function at " ++ showPos(pos)])
-                                                              (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of * function at " ++ showPos(pos)]) )
+                                                              (IntegerValue one, IntegerValue two) -> return (IntegerValue (one-two))
+                                                              (Null err, _ ) -> return (Null (["Invalid value given to first parameter of - function at " ++ showPos(pos)] ++ err))
+                                                              (_, Null err ) -> return (Null (["Invalid value given to second parameter of - function at " ++ showPos(pos)] ++ err) ))
 
-evaluateMexpr defs vars (MathOp a Divide b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                      (case (x,y) of 
-                                                            (IntegerValue one, IntegerValue two)  -> IntegerValue (one `div` two)
-                                                            (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of / function at " ++ showPos(pos)])
-                                                            (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of / function at " ++ showPos(pos)]) )
+evaluateMexpr defs vars pSE (MathOp a Multiply b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                           y <- evaluateMathOptions defs vars pSE b
+                                                           (case (x,y) of 
+                                                                  (IntegerValue one, IntegerValue two) -> return (IntegerValue (one*two))
+                                                                  (Null err, _ ) -> return (Null (["Invalid value given to first parameter of * function at " ++ showPos(pos)] ++ err))
+                                                                  (_, Null err ) -> return (Null (["Invalid value given to second parameter of * function at " ++ showPos(pos)] ++ err) ))
 
-evaluateMexpr defs vars (MathOp a Power b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                     (case (x,y) of 
-                                                           (IntegerValue one, IntegerValue two) -> IntegerValue (one+two)
-                                                           (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of ^ function at " ++ showPos(pos)])
-                                                           (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of ^ function at " ++ showPos(pos)]) )
+evaluateMexpr defs vars pSE (MathOp a Divide b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                         y <- evaluateMathOptions defs vars pSE b
+                                                         (case (x,y) of 
+                                                            (IntegerValue one, IntegerValue two)  -> return (IntegerValue (one `div` two))
+                                                            (Null err, _ ) -> return (Null (["Invalid value given to first parameter of / function at " ++ showPos(pos)] ++ err))
+                                                            (_, Null err ) -> return (Null (["Invalid value given to second parameter of / function at " ++ showPos(pos)] ++ err) ))
+
+evaluateMexpr defs vars pSE (MathOp a Power b pos) = do  x <- (evaluateMathOptions defs vars pSE a)
+                                                         y <- evaluateMathOptions defs vars pSE b
+                                                         (case (x,y) of 
+                                                           (IntegerValue one, IntegerValue two) -> return (IntegerValue (one+two))
+                                                           (Null err, _ ) -> return (Null (["Invalid value given to first parameter of ^ function at " ++ showPos(pos)] ++ err))
+                                                           (_, Null err ) -> return (Null (["Invalid value given to second parameter of ^ function at " ++ showPos(pos)] ++ err) ))
  
 
 
-evaluateBexpr :: [Func_Def] -> [CallVariable] -> Bool_expr -> (Value)
-evaluateBexpr defs vars (BoolVal val pos) = (BooleanValue val)
-evaluateBexpr defs vars (MathToBool a Equal b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                         (case (x,y) of 
-                                                               (IntegerValue one, IntegerValue two) -> BooleanValue (one==two)
-                                                               (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of == function at " ++ showPos(pos)])
-                                                               (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of == function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (MathToBool a Less b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                        (case (x,y) of 
-                                                              (IntegerValue one, IntegerValue two) -> BooleanValue (one<two)
-                                                              (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of < function at " ++ showPos(pos)])
-                                                              (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of < function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (MathToBool a GreaterEqual b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                                (case (x,y) of 
-                                                                      (IntegerValue one, IntegerValue two) -> BooleanValue (one>=two)
-                                                                      (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of >= function at " ++ showPos(pos)])
-                                                                      (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of >= function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (MathToBool a LessEqual b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                             (case (x,y) of  
-                                                                   (IntegerValue one, IntegerValue two) -> BooleanValue (one<=two)
-                                                                   (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of <= function at " ++ showPos(pos)])
-                                                                   (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of <= function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (MathToBool a Greater b pos) =  let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
+evaluateBexpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Bool_expr -> (IO Value)
+evaluateBexpr defs vars pSE (BoolVal val pos) = return (BooleanValue val)
+evaluateBexpr defs vars pSE (MathToBool a Equal b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                            y <- evaluateMathOptions defs vars pSE b
                                                             (case (x,y) of 
-                                                                  (IntegerValue one, IntegerValue two) -> BooleanValue (one >= two)
-                                                                  (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of > function at " ++ showPos(pos)])
-                                                                  (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of > function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (MathToBool a NotEqual b pos) = let (x,y) = (evaluateMathOptions defs vars a, evaluateMathOptions defs vars b) in
-                                                            (case (x,y) of
-                                                                  (IntegerValue one, IntegerValue two) -> BooleanValue (not (one==two))
-                                                                  (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of != function at " ++ showPos(pos)])
-                                                                  (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of != function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (BoolToBool a Or b pos) = let (x,y) = (evaluateBoolOptions defs vars a, evaluateBoolOptions defs vars b) in
-                                                      (case (x,y) of 
-                                                            (BooleanValue one, BooleanValue two) -> BooleanValue (one || two)
-                                                            (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of || function at " ++ showPos(pos)])
-                                                            (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of || function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (BoolToBool a And b pos) = let (x,y) = (evaluateBoolOptions defs vars a, evaluateBoolOptions defs vars b) in
-                                                       (case (x,y) of  
-                                                             (BooleanValue one, BooleanValue two) -> BooleanValue (one && two)
-                                                             (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of && function at " ++ showPos(pos)])
-                                                             (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of && function at " ++ showPos(pos)]) )
-
-evaluateBexpr defs vars (Neg a pos) = let bool = (evaluateBoolOptions defs vars a) in
-                                          (case bool of 
-                                                (BooleanValue one) -> BooleanValue ( not one )
-                                                (Null err) -> Null (err ++ ["Invalid value given to the ! function at " ++ showPos(pos)]) )
+                                                               (IntegerValue one, IntegerValue two) -> return (BooleanValue (one==two))
+                                                               (Null err, _ ) -> return (Null (["Invalid value given to first parameter of == function at " ++ showPos(pos)] ++ err))
+                                                               (_, Null err ) -> return (Null (["Invalid value given to second parameter of == function at " ++ showPos(pos)] ++ err) ))
 
 
-evaluateCexpr :: [Func_Def] -> [CallVariable] -> Cond_expr -> (Value)
-evaluateCexpr defs vars cexpr = let cond = (evaluateBoolOptions defs vars (condExpr cexpr)) in
-                                    (case cond of   
-                                          (BooleanValue True) -> (evaluateExpr defs vars (trueExpr cexpr) )
-                                          (BooleanValue False) -> (evaluateExpr defs vars (falseExpr cexpr) )
-                                          (Null errors) -> Null (errors ++ [( "Invalid condition for if statement at  " ++ showPos(condExprPos(cexpr)) ) ]))
+evaluateBexpr defs vars pSE (MathToBool a Less b pos) = do x <- evaluateMathOptions defs vars pSE a
+                                                           y <- evaluateMathOptions defs vars pSE b
+                                                           (case (x,y) of 
+                                                              (IntegerValue one, IntegerValue two) -> return (BooleanValue (one<two))
+                                                              (Null err, _ ) -> return (Null (["Invalid value given to first parameter of < function at " ++ showPos(pos)] ++ err))
+                                                              (_, Null err ) -> return (Null (["Invalid value given to second parameter of < function at " ++ showPos(pos)] ++ err) ) )
+
+--evaluateBexpr defs vars pSE (MathToBool a Less b pos) = do  x <- evaluateMathOptions defs vars pSE a
+--                                                            y <- evaluateMathOptions defs vars pSE b
+--                                                           (case (x,y) of 
+--                                                              (IntegerValue one, IntegerValue two) -> return (BooleanValue (one<two))
+--                                                              (Null err, _ ) -> return (Null (["Invalid value given to first parameter of < function at " ++ showPos(pos)] ++ err))
+--                                                              (_, Null err ) -> return (Null (["Invalid value given to second parameter of < function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (MathToBool a GreaterEqual b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                                   y <- evaluateMathOptions defs vars pSE b
+                                                                   (case (x,y) of 
+                                                                      (IntegerValue one, IntegerValue two) -> return (BooleanValue (one>=two))
+                                                                      (Null err, _ ) -> return (Null (["Invalid value given to first parameter of >= function at " ++ showPos(pos)] ++ err))
+                                                                      (_, Null err ) -> return (Null (["Invalid value given to second parameter of >= function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (MathToBool a LessEqual b pos) = do  x <- (evaluateMathOptions defs vars pSE a)
+                                                                 y <- evaluateMathOptions defs vars pSE b 
+                                                                 (case (x,y) of  
+                                                                   (IntegerValue one, IntegerValue two) -> return (BooleanValue (one<=two))
+                                                                   (Null err, _ ) -> return (Null (["Invalid value given to first parameter of <= function at " ++ showPos(pos)] ++ err))
+                                                                   (_, Null err ) -> return (Null (["Invalid value given to second parameter of <= function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (MathToBool a Greater b pos) =  do x <- (evaluateMathOptions defs vars pSE a)
+                                                               y <- evaluateMathOptions defs vars pSE b 
+                                                               (case (x,y) of 
+                                                                  (IntegerValue one, IntegerValue two) -> return (BooleanValue (one >= two))
+                                                                  (Null err, _ ) -> return (Null (["Invalid value given to first parameter of > function at " ++ showPos(pos)] ++ err))
+                                                                  (_, Null err ) -> return (Null (["Invalid value given to second parameter of > function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (MathToBool a NotEqual b pos) = do x <- (evaluateMathOptions defs vars pSE a)
+                                                               y <- evaluateMathOptions defs vars pSE b 
+                                                               (case (x,y) of
+                                                                  (IntegerValue one, IntegerValue two) -> return (BooleanValue (not (one==two)))
+                                                                  (Null err, _ ) -> return (Null (["Invalid value given to first parameter of != function at " ++ showPos(pos)] ++ err))
+                                                                  (_, Null err ) -> return (Null (["Invalid value given to second parameter of != function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (BoolToBool a Or b pos) = do x <- (evaluateBoolOptions defs vars pSE a)
+                                                         y <- (evaluateBoolOptions defs vars pSE b) 
+                                                         (case (x,y) of 
+                                                            (BooleanValue one, BooleanValue two) -> return (BooleanValue (one || two))
+                                                            (Null err, _ ) -> return (Null (["Invalid value given to first parameter of || function at " ++ showPos(pos)] ++ err))
+                                                            (_, Null err ) -> return (Null (["Invalid value given to second parameter of || function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (BoolToBool a And b pos) = do x <- (evaluateBoolOptions defs vars pSE a)
+                                                          y <- (evaluateBoolOptions defs vars pSE b) 
+                                                          (case (x,y) of  
+                                                             (BooleanValue one, BooleanValue two) -> return (BooleanValue (one && two))
+                                                             (Null err, _ ) -> return (Null (["Invalid value given to first parameter of && function at " ++ showPos(pos)] ++ err))
+                                                             (_, Null err ) -> return( Null (["Invalid value given to second parameter of && function at " ++ showPos(pos)] ++ err) ))
+
+evaluateBexpr defs vars pSE (Neg a pos) = do bool <- (evaluateBoolOptions defs vars pSE a)
+                                             (case bool of 
+                                                (BooleanValue one) -> return (BooleanValue ( not one ))
+                                                (Null err) -> return (Null (["Invalid value given to the ! function at " ++ showPos(pos)] ++ err) ))
+
+
+evaluateCexpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Cond_expr -> (IO Value)
+evaluateCexpr defs vars pSE cexpr = do cond <- (evaluateBoolOptions defs vars pSE (condExpr cexpr))
+                                       (case cond of   
+                                          (BooleanValue True) -> (evaluateExpr defs vars pSE (trueExpr cexpr) )
+                                          (BooleanValue False) -> (evaluateExpr defs vars pSE (falseExpr cexpr) )
+                                          (Null errors) -> return (Null ([( "Invalid condition for if statement at  " ++ showPos(condExprPos(cexpr)) ) ] ++ errors)))
 
 
 
 -- below function will check if each expr of the list has the same type. It will return the evaluated list after completion.
-typeCheckList :: [Func_Def] -> [CallVariable] -> [Expr] -> [Value] -> AlexPosn -> Error [Value]
+typeCheckList :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> [Expr] -> [Value] -> AlexPosn -> IO Value
 
-typeCheckList defs vars [] ys pos = return ys
+typeCheckList defs vars pSE [] ys pos = return (ListValue ys)
 
-typeCheckList defs vars (x:xs) ys pos | (length ys) == 0 = let a = (evaluateExpr defs vars x) in
-                                                               (case (a) of
-                                                                    (Null err) -> (Errors (err ++ ["Invalid element(s) within this list at " ++ showPos(pos) ]))
-                                                                    (value) -> typeCheckList defs vars xs (ys ++ [value]) pos )
-                                      | otherwise = let a = (evaluateExpr defs vars x) in
-                                                        (case (a) of
-                                                              (Null err) -> (Errors (err ++ ["Invalid element(s) within this list at " ++ showPos(pos) ]))
+typeCheckList defs vars pSE (x:xs) ys pos | (length ys) == 0 = do a <- (evaluateExpr defs vars pSE x)
+                                                                  (case (a) of
+                                                                    (Null err) -> return (Null (["Invalid element(s) within this list at " ++ showPos(pos) ] ++ err))
+                                                                    (value) -> (typeCheckList defs vars pSE xs (ys ++ [value]) pos ))
+                                          | otherwise = do a <- (evaluateExpr defs vars pSE x)
+                                                           (case (a) of
+                                                              (Null err) -> return (Null (["Invalid element(s) within this list at " ++ showPos(pos) ]++ err ))
                                                               (value) -> ( if ( sameType value (head (reverse ys)) )
-                                                                                    then typeCheckList defs vars xs (ys ++ [value]) pos
-                                                                                    else (Errors [("Invalid element in list (doesn't match previous values in list). Error at " ++ (showPos pos))]) )  )
+                                                                              then typeCheckList defs vars pSE xs (ys ++ [value]) pos
+                                                                              else return (Null [("Invalid element in list (doesn't match previous values in list). Error at " ++ (showPos pos))]) )  )
                                       
 sameType :: Value -> Value -> Bool
 sameType (IntegerValue _) (IntegerValue _) = True
@@ -290,40 +379,62 @@ sameType (_) (_)  = False
 
 
 
-evaluateLexpr :: [Func_Def] -> [CallVariable] ->  List_expr -> (Value)
-evaluateLexpr defs vars (List list pos) = let ret = (typeCheckList defs vars list [] pos) in
-                                              (case (ret) of 
-                                                    (Valid list) -> (ListValue list)
-                                                    (Errors err) ->  Null (err ++ ["Invalid list construction  " ++ showPos(pos)]) )
-evaluateLexpr defs vars (Concat a b pos) = let (x,y) = (evaluateListOptions defs vars a, evaluateListOptions defs vars b) in
-                                               (case (x,y) of
-                                                     (ListValue one, ListValue two) -> ListValue (one ++ two)
-                                                     (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of ++ function at " ++ showPos(pos)])
-                                                     (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of ++ function at " ++ showPos(pos)]) )
-evaluateLexpr defs vars (Tail a pos) = let list = (evaluateListOptions defs vars a) in
-                                           (case list of 
-                                                 (ListValue one) -> ListValue ( tail(one) )
-                                                 (Null err) -> Null (err ++ ["Invalid value given to tail function at " ++ showPos(pos)]) )
+evaluateLexpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment ->  List_expr -> (IO Value)
+evaluateLexpr defs vars pSE (List list pos) = do ret <- (typeCheckList defs vars pSE list [] pos)
+                                                 (case (ret) of 
+                                                    (ListValue l ) -> return (ListValue l )
+                                                    (Null err) ->  return (Null (["Invalid list construction  " ++ showPos(pos)] ++ err) ))
+evaluateLexpr defs vars pSE (Concat a b pos) = do x <- (evaluateListOptions defs vars pSE a)
+                                                  y <- evaluateListOptions defs vars pSE b 
+                                                  (case (x,y) of
+                                                     (ListValue one, ListValue two) -> return (ListValue (one ++ two))
+                                                     (Null err, _ ) -> return (Null (["Invalid value given to first parameter of ++ function at " ++ showPos(pos)] ++ err))
+                                                     (_, Null err ) -> return (Null (["Invalid value given to second parameter of ++ function at " ++ showPos(pos)] ++ err) ))
 
-evaluateLexpr defs vars (Row a pos) = Null ["You can't call row outside processStream. Error at: "++ (showPos pos)]
-evaluateLexpr defs vars (Sequence a pos) = Null ["You can't call sequence outside processStream. Error at: "++ (showPos pos)]
-evaluateLexpr defs vars (Streams pos) = Null ["You can't call stresam outside processStream. Error at: "++ (showPos pos)]
+evaluateLexpr defs vars pSE (Tail a pos) = do list <- (evaluateListOptions defs vars pSE a)
+                                              (case list of 
+                                                 (ListValue one) -> return (ListValue ( tail(one) ))
+                                                 (Null err) -> return (Null (["Invalid value given to tail function at " ++ showPos(pos)] ++ err) ))
 
-evaluateListFuncExpr :: [Func_Def] -> [CallVariable] ->  List_Func -> (Value)
-evaluateListFuncExpr defs vars (Head list pos) =  let l = (evaluateListOptions defs vars list) in
-                                                      (case l of 
-                                                            (ListValue one) -> (head (one))
-                                                            (Null err) -> Null (err ++ ["Invalid value given to head function at " ++ showPos(pos)]) )
+evaluateLexpr defs vars (StreamEnvironment x row y z) (Row pos) = return (ListValue (fromIntList row))
+
+evaluateLexpr defs vars (_) (Row pos) =  return (Null ["You can't call row outside processStream. Error at: "++ (showPos pos)])
+
+evaluateLexpr defs vars pSE (Sequence a pos) = return (Null ["You can't call sequence outside processStream. Error at: "++ (showPos pos)])
+
+evaluateLexpr defs vars (StreamEnvironment _ _ stream _) (Streams pos) = return (ListValue (fromStream stream))
+
+evaluateLexpr defs vars pSE (Streams pos) = return (Null ["You can't call stresam outside processStream. Error at: "++ (showPos pos)])
+
+fromIntList :: [Int] -> [Value]
+fromIntList [] = []
+fromIntList (x:xs) = (IntegerValue x) : fromIntList xs
+
+fromStream :: [[Int]] -> [Value]
+fromStream [] = [] 
+fromStream (xs:xss) = (ListValue (fromIntList xs)) : fromStream xss
+
+
+--data ProcessStreamEnvironment = StreamEnvironment { accumalatorValue::Value, currentRow::[Int], stream::[[Int]], currentValue::Value} 
+    
+
+
+evaluateListFuncExpr :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment ->  List_Func -> (IO Value)
+evaluateListFuncExpr defs vars pSE (Head list pos) = do l <- (evaluateListOptions defs vars pSE list)
+                                                        (case l of 
+                                                           (ListValue one) -> return (head (one))
+                                                           (Null err) -> return (Null (["Invalid value given to head function at " ++ showPos(pos)] ++ err) ))
 
 
 
 
 
-evaluateListFuncExpr defs vars (ElemAt list math pos) = let (x,y) = (evaluateListOptions defs vars list, evaluateMathOptions defs vars math) in
-                                                           (case (x,y) of 
-                                                                 (ListValue ls, IntegerValue index)  -> (ls !! index)
-                                                                 (Null err, _ ) -> Null (err ++ ["Invalid value given to first parameter of !! function at " ++ showPos(pos)])
-                                                                 (_, Null err ) -> Null (err ++ ["Invalid value given to second parameter of !! function at " ++ showPos(pos)]) ) 
+evaluateListFuncExpr defs vars pSE (ElemAt list math pos) = do x <- (evaluateListOptions defs vars pSE list)
+                                                               y <- evaluateMathOptions defs vars pSE math 
+                                                               (case (x,y) of 
+                                                                 (ListValue ls, IntegerValue index)  -> return (ls !! index)
+                                                                 (Null err, _ ) -> return (Null (["Invalid value given to first parameter of !! function at " ++ showPos(pos)] ++ err))
+                                                                 (_, Null err ) -> return (Null (["Invalid value given to second parameter of !! function at " ++ showPos(pos)] ++ err) ) )
                                                        
 
 getType :: Value -> String
@@ -334,42 +445,42 @@ getType (ListValue _) = "List"
 
 
 
-evaluateBoolOptions :: [Func_Def] -> [CallVariable] -> Bool_options ->  (Value)
-evaluateBoolOptions defs vars (OptionBoolExpr expr) = (evaluateBexpr defs vars expr)
-evaluateBoolOptions defs vars (BoolVar x pos) = evaluateExpr defs vars (Var x pos)
-evaluateBoolOptions defs vars (BoolOut out) = evaluateOutStmt defs vars out           
-evaluateBoolOptions defs vars (BoolProcessStream func) = evaluateProcessStreamStmt defs vars func
-evaluateBoolOptions defs vars (BoolAccumalator pos) = evaluateExpr defs vars (Accumalator pos)
-evaluateBoolOptions defs vars (BoolFunc func) = let val = (evaluateFuncStmt defs vars func) in
-                                                    (case val of 
-                                                          (BooleanValue bool) -> val
-                                                          (Null errors) -> Null (errors ++ ["Problem occurred evaluating function at " ++ (showPos (callPos func)) ])
-                                                          (_) -> Null ["This function doesn't evaluate to a boolean. Error at " ++ (showPos (callPos func)) ])
+evaluateBoolOptions :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Bool_options ->  (IO Value)
+evaluateBoolOptions defs vars pSE (OptionBoolExpr expr) = (evaluateBexpr defs vars pSE expr)
+evaluateBoolOptions defs vars pSE (BoolVar x pos) = evaluateExpr defs vars pSE (Var x pos)
+evaluateBoolOptions defs vars pSE (BoolOut out) = evaluateOutStmt defs vars pSE out           
+evaluateBoolOptions defs vars pSE (BoolProcessStream func) = evaluateProcessStreamStmt defs vars pSE func
+evaluateBoolOptions defs vars pSE (BoolAccumalator pos) = evaluateExpr defs vars pSE (Accumalator pos)
+evaluateBoolOptions defs vars pSE (BoolFunc func) = do val <- (evaluateFuncStmt defs vars pSE func)
+                                                       (case val of 
+                                                          (BooleanValue bool) -> return val
+                                                          (Null errors) -> return (Null (["Problem occurred evaluating function at " ++ (showPos (callPos func)) ] ++ errors) )
+                                                          (_) -> return (Null ["This function doesn't evaluate to a boolean. Error at " ++ (showPos (callPos func)) ]))
 
 
-evaluateMathOptions :: [Func_Def] -> [CallVariable] -> Math_options -> (Value)
-evaluateMathOptions defs vars (OptionMathExpr expr) = (evaluateMexpr defs vars expr)
-evaluateMathOptions defs vars (MathVar x pos) = evaluateExpr defs vars (Var x pos) 
-evaluateMathOptions defs vars (MathOut out) = evaluateOutStmt defs vars out           
-evaluateMathOptions defs vars (MathProcessStream func) = evaluateProcessStreamStmt defs vars func
-evaluateMathOptions defs vars (MathAccumalator pos) = evaluateExpr defs vars (Accumalator pos)
-evaluateMathOptions defs vars (MathFunc func) = let val = (evaluateFuncStmt defs vars func) in
-                                                    (case val of 
-                                                          (IntegerValue int) -> val
-                                                          (Null errors) -> Null (errors ++ ["Problem occurred evaluating function at " ++ (showPos (callPos func)) ])
-                                                          (_) -> Null ["This function doesn't evaluate to an integer. Error at " ++ (showPos (callPos func)) ] )
+evaluateMathOptions :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> Math_options -> (IO Value)
+evaluateMathOptions defs vars pSE (OptionMathExpr expr) = (evaluateMexpr defs vars pSE expr)
+evaluateMathOptions defs vars pSE (MathVar x pos) = evaluateExpr defs vars pSE (Var x pos) 
+evaluateMathOptions defs vars pSE (MathOut out) = evaluateOutStmt defs vars pSE out           
+evaluateMathOptions defs vars pSE (MathProcessStream func) = evaluateProcessStreamStmt defs vars pSE func
+evaluateMathOptions defs vars pSE (MathAccumalator pos) = evaluateExpr defs vars pSE (Accumalator pos)
+evaluateMathOptions defs vars pSE (MathFunc func) = do val <- (evaluateFuncStmt defs vars pSE func)
+                                                       (case val of 
+                                                          (IntegerValue int) -> return val
+                                                          (Null errors) ->  return (Null (["Problem occurred evaluating function at " ++ (showPos (callPos func)) ] ++ errors))
+                                                          (_) -> return (Null ["This function doesn't evaluate to an integer. Error at " ++ (showPos (callPos func)) ] ))
 
-evaluateListOptions :: [Func_Def] -> [CallVariable] -> List_options -> (Value)
-evaluateListOptions defs vars (OptionListExpr expr) = (evaluateLexpr defs vars expr)
-evaluateListOptions defs vars (ListVar x pos) = evaluateExpr defs vars (Var x pos)
-evaluateListOptions defs vars (ListOut out) = evaluateOutStmt defs vars out           
-evaluateListOptions defs vars (ListProcessStream func) = evaluateProcessStreamStmt defs vars func
-evaluateListOptions defs vars (ListAccumalator pos) = evaluateExpr defs vars (Accumalator pos)
-evaluateListOptions defs vars (ListFunc func) = let val = (evaluateFuncStmt defs vars func) in
-                                                    (case val of 
-                                                          (ListValue int) -> val
-                                                          (Null errors) -> Null (errors ++ ["Problem occurred evaluating function at " ++ (showPos (callPos func)) ])
-                                                          (_) -> Null ["This function doesn't evaluate to a list. Error at " ++ (showPos (callPos func)) ])
+evaluateListOptions :: [Func_Def] -> [CallVariable] -> ProcessStreamEnvironment -> List_options -> (IO Value)
+evaluateListOptions defs vars pSE (OptionListExpr expr) = (evaluateLexpr defs vars pSE expr)
+evaluateListOptions defs vars pSE (ListVar x pos) = evaluateExpr defs vars pSE (Var x pos)
+evaluateListOptions defs vars pSE (ListOut out) = evaluateOutStmt defs vars pSE out           
+evaluateListOptions defs vars pSE (ListProcessStream func) =  evaluateProcessStreamStmt defs vars pSE func
+evaluateListOptions defs vars pSE (ListAccumalator pos) = evaluateExpr defs vars pSE (Accumalator pos)
+evaluateListOptions defs vars pSE (ListFunc func) = do val <- (evaluateFuncStmt defs vars pSE func)
+                                                       (case val of 
+                                                          (ListValue int) -> return val
+                                                          (Null errors) -> return (Null (["Problem occurred evaluating function at " ++ (showPos (callPos func)) ] ++ errors))
+                                                          (_) -> return (Null ["This function doesn't evaluate to a list. Error at " ++ (showPos (callPos func)) ]))
 
 
 

@@ -7,17 +7,27 @@ import System.IO
 
 
 main :: IO ()
-main = catch main' noParse
+main = cool2
 
 tokens' fileName  = do sourceText <- readFile (fileName)
                        return ((alexScanTokens sourceText))
 
+printAll ([]) = return ()
+printAll (x:xs) = do l <- x
+                     printAll(xs)
 
 cool' fileName = do sourceText <- readFile (fileName)
-                    putStrLn ("Parsing : " ++ sourceText)
+                    --putStrLn ("Parsing : " ++ sourceText)
                     let parsedProg = parseCalc (alexScanTokens sourceText)
-                    putStrLn ("Parsed as " ++ (show parsedProg) )
-                    return (evaluateProgram parsedProg) 
+                    --putStrLn ("Parsed as " ++ (show parsedProg) )
+                    printAll(evaluateProgram parsedProg)
+
+cool2          = do (fileName : _ ) <- getArgs 
+                    sourceText <- readFile (fileName)
+                    --putStrLn ("Parsing : " ++ sourceText)
+                    let parsedProg = parseCalc (alexScanTokens sourceText)
+                    --putStrLn ("Parsed as " ++ (show parsedProg) )
+                    printAll(evaluateProgram parsedProg)
 
 main' = do (fileName : _ ) <- getArgs 
            sourceText <- readFile fileName

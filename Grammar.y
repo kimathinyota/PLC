@@ -154,6 +154,7 @@ bool_expr : boolean {BoolVal (stringToBool (string $1)) (pos $1) }
 		      | bool_options or bool_options {BoolToBool $1 Or $3 (pos $2) }
           | bool_options and bool_options {BoolToBool $1 And $3 (pos $2) }
 		      | neg bool_options {Neg $2 (pos $1)}
+          --| list_func_expr {BoolListFunc $1 (pos $1)}
 		      | lparen bool_expr rparen {$2}
 
 
@@ -165,15 +166,18 @@ math_expr : int {IntVal (int $1) (pos $1)}
           | math_options '/' math_options {MathOp $1 Divide $3 (pos $2)}
           | math_options '^' math_options {MathOp $1 Power $3 (pos $2)}
           | length lparen list_options rparen {Length $3 (pos $1)}
+          --| list_func_expr {MathListFunc $1 (pos $1)}
 		      | lparen math_expr rparen {$2}
           
 list_expr : lbracket list rbracket {List $2 (pos $1) }
           | tail lparen list_options rparen {Tail $3 (pos $1) }
 		      | list_options concat list_options {Concat $1 $3 (pos $2)}
-          | rowList lparen math_options rparen {Row $3 (pos $1) }
+          | rowList {Row (pos $1) }
           | seqList lparen math_options rparen {Sequence $3 (pos $1) }
           | streams {Streams (pos $1)}
+          --| list_func_expr {ListListFunc $1 (pos $1)}
           | lparen list_expr rparen {$2}
+
 
 list : expr comma list {$1 : $3 }
      | expr { [$1] }
@@ -249,6 +253,7 @@ data Bool_expr = BoolVal {boolVal::Bool, boolPos::AlexPosn}
                | MathToBool {mathA::Math_options, mathToBoolOp::Math_to_bool, mathB::Math_options, mathToBoolPos::AlexPosn}
                | BoolToBool {boolA::Bool_options, boolToBoolOp::Bool_to_bool, boolB::Bool_options, boolToBoolPos::AlexPosn}
                | Neg {boolNeg::Bool_options, posNeg::AlexPosn}
+               | BoolListFunc { boolListFunc::List_Func, boolListFuncPos::AlexPosn}
                deriving (Eq,Show)
 
 data Math_to_bool = Equal 
@@ -268,6 +273,7 @@ data Math_expr = IntVal {intVal::Int, intPos::AlexPosn}
                | Length {listLength::List_options, lengthPos::AlexPosn}
                | EOF {eofPos::AlexPosn}
                | EOL {eolPos::AlexPosn}
+               | MathListFunc { mathListFunc::List_Func, mathListFuncPos::AlexPosn}
                deriving (Eq,Show)
 
 
@@ -303,9 +309,10 @@ data Cond_expr = Cond {condExpr::Bool_options, trueExpr::Expr, falseExpr::Expr, 
 data List_expr = List { list::[Expr], listPos::AlexPosn}
                | Concat {listA::List_options, listB::List_options, concatPos::AlexPosn}
                | Tail {listTail::List_options, tailPos::AlexPosn}
-               | Row {rowMath::Math_options, rowPos::AlexPosn}
+               | Row { rowPos::AlexPosn}
                | Sequence {seqMath::Math_options, seqPos::AlexPosn}
-               | Streams {streamPos::AlexPosn}    
+               | Streams {streamPos::AlexPosn}
+               | ListListFunc { listListFunc::List_Func, listListFuncPos::AlexPosn}    
                deriving (Eq,Show)
 
 
