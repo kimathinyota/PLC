@@ -1,0 +1,2 @@
+processStream(0, out( [elem(R,0) + (3*elem(R,1)) ] ), 0 ,0,100,1);
+elem ( yss, k ) = yss !! k;
