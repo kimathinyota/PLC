@@ -1,0 +1,6 @@
+processStream([],0, if((length(streams)-1)<=1) 
+                      then (acc ++ [[ out(elem(R,0)) ]] ++ out([]) ) 
+                      else (acc ++ [[ out(elem(R,0) + get(acc,(length(streams)-1)-2,0) ) ]] ++ out([]) ),
+                 0,EOF,1);
+get(xss,x,y) = elem(xss,x) !! y;
+elem(xss,x) = xss !! x;

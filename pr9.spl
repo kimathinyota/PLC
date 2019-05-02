@@ -1,0 +1,5 @@
+processStream(0,out([nat(streams,0)]),acc+1,0,EOF,1);
+nat(stream,k) = if(k<=length(stream)-1) 
+                  then ( (length(stream) - k) * get(stream,k,0) + nat(stream,k+1) ) else (0);
+get(xss,x,y) = elem(xss,x) !! y;
+elem(xss,x) = xss !! x;

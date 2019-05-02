@@ -1,0 +1,2 @@
+processStream(0, out( [elem(R,0)-elem(R,1)] ++ [elem(R,0)] ), 0, 0, EOF, 1);
+elem(xs,index) = xs !! index;
