@@ -72,17 +72,45 @@ SPL offers detailed error messages when programs are incorrect for example:
 
 ## Example Code in SPL 
 
-### Problem 1
-processStream(0, out( if(acc==0) then ([0]) else ([elem(elem(streams, acc-1),0)]) ) ,acc+1,0,100,1); <br/>
+### Problem 10
+![](Images/prob10.png)
+processStream([],0, if((length(streams)-1)<=1) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then (acc ++ [[ out(elem(R,0)) ]] ++ out([]) ) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else (acc ++ [[ out(elem(R,0) + get(acc,(length(streams)-1)-2,0) ) ]] ++ out([]) ), <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0,EOF,1); <br/>
+get(xss,x,y) = elem(xss,x) !! y; <br/>
+elem(xss,x) = xss !! x; <br/>
+
+### Problem 9
+![](Images/prob9.png)
+processStream(0,out([nat(streams,0)]),acc+1,0,EOF,1); <br/>
+nat(stream,k) = if(k<=length(stream)-1) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ( (length(stream) - k) * get(stream,k,0) + nat(stream,k+1) ) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else (0); <br/>
+get(xss,x,y) = elem(xss,x) !! y; <br/>
+elem(xss,x) = xss !! x; <br/>
+
+### Problem 8
+![](Images/prob8.png)
+processStream(0, out( if(acc==0) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ([elem(R,0)]) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else ([elem(elem(streams, acc-1),0) + elem(elem(streams, acc),0)]) ) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;,acc+1,0,EOF,1); <br/>
 elem(xs,index) = xs !! index <br/>
-### Problem 2
-processStream(0, out( R ++ R),0,0,100,1); <br/>
-### Problem 3
-processStream(0, out( [elem(R,0) + (3*elem(R,1)) ] ), 0 ,0,100,1); <br/>
-elem ( yss, k ) = yss !! k; <br/>
-### Problem 4
-processStream(0, out( [elem(R,0) + acc] ) ,acc + elem(R,0) ,0,100,1); <br/>
-elem ( yss, k ) = yss !! k; <br/>
+
+### Problem 7
+![](Images/prob7.png)
+processStream(0, out( [elem(R,0)-elem(R,1)] ++ [elem(R,0)] ), 0, 0, EOF, 1); <br/>
+elem(xs,index) = xs !! index; <br/>
+
+### Problem 6
+![](Images/prob6.png)
+processStream(0, out( if(acc==0) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ( [elem(R,0)] ++ [0]) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else ( [elem(R,0)] ++ [elem(elem(streams, acc-1),0)])),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;acc+1,0,EOF,1); <br/>
+elem(xs,index) = xs !! index;
+
 ### Problem 5
 processStream(0, out( [work(streams)] ) ,acc+1,0,100,1); <br/>
 fib(n) = if(n<2) then (1) else ( fib (n-1) + fib (n-2) ); <br/>
@@ -90,34 +118,19 @@ elem ( yss, k ) = yss !! k; <br/>
 addFib ( stream, count ) = if(count>=0) then ( fib(count) * elem(head(stream),0) + addFib(tail(stream),count-1) ) else (0); <br/>
 work ( stream) = addFib( stream, length(stream)-1); <br/>
 cool (stream, row) = if(row<length(stream)) then ( cool(stream,row+1) ++ [addFib (stream,row)]) else ([] ); <br/>
-### Problem 6
-processStream(0, out( if(acc==0) <br/>
-                      then ( [elem(R,0)] ++ [0]) <br/>
-                      else ( [elem(R,0)] ++ [elem(elem(streams, acc-1),0)]) <br/>
-             ),acc+1,0,EOF,1); <br/>
-elem(xs,index) = xs !! index; 
-### Problem 7
-processStream(0, out( [elem(R,0)-elem(R,1)] ++ [elem(R,0)] ), 0, 0, EOF, 1); <br/>
-elem(xs,index) = xs !! index; <br/>
-### Problem 8
-processStream(0, out( if(acc==0) <br/>
-                      then ([elem(R,0)]) <br/>
-                      else ([elem(elem(streams, acc-1),0) + elem(elem(streams, acc),0)]) ) ,acc+1,0,EOF,1); <br/>
+
+### Problem 4
+processStream(0, out( [elem(R,0) + acc] ) ,acc + elem(R,0) ,0,100,1); <br/>
+elem ( yss, k ) = yss !! k; <br/>
+
+### Problem 3
+processStream(0, out( [elem(R,0) + (3*elem(R,1)) ] ), 0 ,0,100,1); <br/>
+elem ( yss, k ) = yss !! k; <br/>
+
+### Problem 2
+processStream(0, out( R ++ R),0,0,100,1); <br/>
+
+
+### Problem 1
+processStream(0, out( if(acc==0) then ([0]) else ([elem(elem(streams, acc-1),0)]) ) ,acc+1,0,100,1); <br/>
 elem(xs,index) = xs !! index <br/>
-### Problem 9
-processStream(0,out([nat(streams,0)]),acc+1,0,EOF,1); <br/>
-nat(stream,k) = if(k<=length(stream)-1) <br/>
-                then ( (length(stream) - k) * get(stream,k,0) + nat(stream,k+1) ) <br/>
-                else (0); <br/>
-get(xss,x,y) = elem(xss,x) !! y; <br/>
-elem(xss,x) = xss !! x; <br/>
-
-### Problem 10
-processStream([],0, if((length(streams)-1)<=1) <br/>
-                    then (acc ++ [[ out(elem(R,0)) ]] ++ out([]) ) <br/>
-                    else (acc ++ [[ out(elem(R,0) + get(acc,(length(streams)-1)-2,0) ) ]] ++ out([]) ), <br/>
-              0,EOF,1); <br/>
-get(xss,x,y) = elem(xss,x) !! y; <br/>
-elem(xss,x) = xss !! x; <br/>
-
-
