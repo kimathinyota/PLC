@@ -67,13 +67,13 @@ Where there can be any number of parameters inside the brackets (no commas are u
 Commenting is possible in SPL programs any text following two dashes (--) is ignored by the compiler. E.g. “out(3) --some text” is a valid program.
 
 ### Error Checking
-SPL offers detailed error messages when programs are incorrect for example:
-
+SPL offers detailed error messages when programs are incorrect for example:<br/>
+![](Images/errors.png)
 
 ## Example Code in SPL 
 
 ### Problem 10
-![](Images/prob10.png)
+![](Images/prob10.png) <br/>
 processStream([],0, if((length(streams)-1)<=1) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then (acc ++ [[ out(elem(R,0)) ]] ++ out([]) ) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else (acc ++ [[ out(elem(R,0) + get(acc,(length(streams)-1)-2,0) ) ]] ++ out([]) ), <br/>
@@ -82,7 +82,7 @@ get(xss,x,y) = elem(xss,x) !! y; <br/>
 elem(xss,x) = xss !! x; <br/>
 
 ### Problem 9
-![](Images/prob9.png)
+![](Images/prob9.png) <br/>
 processStream(0,out([nat(streams,0)]),acc+1,0,EOF,1); <br/>
 nat(stream,k) = if(k<=length(stream)-1) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ( (length(stream) - k) * get(stream,k,0) + nat(stream,k+1) ) <br/>
@@ -91,7 +91,7 @@ get(xss,x,y) = elem(xss,x) !! y; <br/>
 elem(xss,x) = xss !! x; <br/>
 
 ### Problem 8
-![](Images/prob8.png)
+![](Images/prob8.png) <br/>
 processStream(0, out( if(acc==0) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ([elem(R,0)]) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else ([elem(elem(streams, acc-1),0) + elem(elem(streams, acc),0)]) ) <br/>
@@ -99,12 +99,12 @@ processStream(0, out( if(acc==0) <br/>
 elem(xs,index) = xs !! index <br/>
 
 ### Problem 7
-![](Images/prob7.png)
+![](Images/prob7.png) <br/>
 processStream(0, out( [elem(R,0)-elem(R,1)] ++ [elem(R,0)] ), 0, 0, EOF, 1); <br/>
 elem(xs,index) = xs !! index; <br/>
 
 ### Problem 6
-![](Images/prob6.png)
+![](Images/prob6.png) <br/>
 processStream(0, out( if(acc==0) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;then ( [elem(R,0)] ++ [0]) <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;else ( [elem(R,0)] ++ [elem(elem(streams, acc-1),0)])),<br/>
